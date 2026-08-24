@@ -494,6 +494,28 @@ function __hyInit__() {
       });
     } else {
       console.log("其它情况");
+      // 【2026.8.24】自动关闭课程列表页的 Vue 弹窗（wind_layer）
+      (function autoCloseWindLayer() {
+        function tryClose() {
+          var checkbox = document.querySelector('.wind_layer .checkbox-input');
+          var btn = document.querySelector('.wind_layer .imp_btn');
+          if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (btn) btn.click();
+        }
+        // 立即尝试
+        setTimeout(tryClose, 1000);
+        // MutationObserver 兜底（Vue 异步渲染）
+        var observer = new MutationObserver(function () {
+          if (document.querySelector('.wind_layer .imp_btn')) {
+            tryClose();
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+      })();
       var urlInf = window.location.href.split("/");
       var urlErr = urlInf[urlInf.length - 3].split("?")[0];
       if (urlErr == "error.html") {
