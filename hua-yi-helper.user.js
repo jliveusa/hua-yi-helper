@@ -562,7 +562,7 @@ function __hyInit__() {
               sessionStorage.removeItem("hua_yi_post_refresh");
               // 立即阻止检测循环再次触发刷新，防止死循环
               courseFinished = true;
-              navCooldownUntil = Date.now() + 60000;
+              navCooldownUntil = Date.now() + 5000;
               console.log(
                 "【华医网小助手】刷新后检测到标记，检查当前课程状态...",
               );
@@ -1362,7 +1362,7 @@ function __hyInit__() {
             }
           }
           // 跳转后冷却：10秒内禁止再次检测到"已完成"就跳转
-          navCooldownUntil = Date.now() + 10000;
+          navCooldownUntil = Date.now() + 5000;
         } else {
           _lastCompletedCheck = 0; // 状态变了，重置 debounce
         }
@@ -1506,7 +1506,7 @@ function __hyInit__() {
               if (!navigated) {
                 foundLi.click();
               }
-              navCooldownUntil = Date.now() + 15000;
+              navCooldownUntil = Date.now() + 5000;
             } else {
               // 没有学习中/未学习课程，检查是否进入考试
               if (localStorage.getItem("华医mode") == "2") {
@@ -2043,7 +2043,7 @@ function __hyInit__() {
         clearInterval(clockms);
         clockms = null;
       }
-      navCooldownUntil = Date.now() + 15000; // 15秒冷却，确保新页面完全加载
+      navCooldownUntil = Date.now() + 5000; // 5秒冷却（已验证安全间隔）
 
       try {
         //自动播放下一个视频的逻辑
