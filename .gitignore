@@ -1,8 +1,15 @@
 # 本地私有文件（含账号密码明文，严禁上传）
 local/
-node_modules
 
 # 开发文档（含技术细节，不公开）
 docs/
 
-scripts
+# 临时测试/脚本文件（不公开）
+scripts/test-*.js
+scripts/mimo-search.mjs
+scripts/.env.local
+test-screenshots/
+
+# Node
+node_modules/
+package*.json

@@ -887,6 +887,35 @@ function __hyInit__() {
           var res = $(".tips_text")[0].innerText;
           var dds = $(".state_cour_lis");
           localStorage.removeItem(keyResult); //移除错题表缓存
+
+          // ===== 【2026.8.24 新增】检测"课程进度页"（视频播完后跳转到 exam_result.aspx）
+          // 页面结构：li.state_cour_lis > p.state_lis_text + input.state_lis_btn[value="已完成"|"立即学习"|"待考试"]
+          // 如果有"立即学习"按钮，说明是课程进度页而非考试结果页，直接点击下一课
+          var nextBtn = null;
+          var nextTitle = "";
+          for (var i = 0; i < dds.length; i++) {
+            var btn = dds[i].querySelector("input.state_lis_btn");
+            var status = btn ? btn.value : "";
+            if (status === "立即学习" || status === "待考试") {
+              nextBtn = btn;
+              var titleEl = dds[i].querySelector("p.state_lis_text");
+              nextTitle = titleEl
+                ? titleEl.getAttribute("title") || titleEl.innerText
+                : "";
+              break;
+            }
+          }
+          if (nextBtn) {
+            console.log(
+              "【华医网小助手】检测到课程进度页，找到下一课：" + nextTitle,
+            );
+            setTimeout(function () {
+              nextBtn.click();
+            }, 1500);
+            return; // 不走下面的考试逻辑
+          }
+
+          // ===== 原有考试结果逻辑 =====
           if (
             res == "考试通过" ||
             res == "考试通过！" ||
@@ -898,38 +927,11 @@ function __hyInit__() {
             SaveAllAnwser(); //存储所有记录的答案
             cleanKeyStorage(); //如果通过清理答案
 
-            // 考试通过后：在结果页查找下一个待考试课程，通过其标题构造跳转
+            // 考试通过后：回到课程列表页让 auto-scan 处理
             setTimeout(function () {
-              var found = false;
-              // 考试结果页的结构：li.state_cour_lis > p.state_lis_text[title] + input.state_lis_btn[value]
-              var courLis = document.querySelectorAll("li.state_cour_lis");
-              for (var i = 0; i < courLis.length; i++) {
-                var btn = courLis[i].querySelector("input.state_lis_btn");
-                var status = btn ? btn.value : "";
-                if (status === "待考试") {
-                  var titleEl = courLis[i].querySelector("p.state_lis_text");
-                  var title = titleEl
-                    ? titleEl.getAttribute("title") || titleEl.innerText
-                    : "";
-                  console.log(
-                    "【华医网小助手】考试通过，找到待考试课程：" +
-                      title +
-                      "，返回课程列表自动进入",
-                  );
-                  found = true;
-                  break;
-                }
-              }
-              // 无论是否找到下一个待考试，都回到课程列表页让 auto-scan 处理
-              // 因为结果页的按钮没有导航功能，需要回到课程页/列表页
-              if (found) {
-                console.log(
-                  "【华医网小助手】返回课程列表页，自动扫描将处理下一课程",
-                );
-              } else {
-                console.log("【华医网小助手】未找到待考试课程，返回课程列表页");
-              }
-              // 直接导航到课程列表页（cme.aspx），脚本的 auto-scan 会自动找下一个待学习课程
+              console.log(
+                "【华医网小助手】返回课程列表页，自动扫描将处理下一课程",
+              );
               window.location.href = window.location.origin + "/pages/cme.aspx";
             }, 1000);
           } else {
@@ -1610,7 +1612,7 @@ function __hyInit__() {
             <span>华医网小助手 v` +
         (typeof GM_info !== "undefined"
           ? GM_info["script"]["version"]
-          : "2.0.2") +
+          : "2.1.1") +
         `</span>
             <span style="display:flex;gap:8px;align-items:center;">
                 <span id='hyu-minimize' style="cursor:pointer;font-size:16px;line-height:1;opacity:0.85;" title="最小化面板">─</span>
