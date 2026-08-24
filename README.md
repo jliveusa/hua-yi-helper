@@ -1,9 +1,11 @@
 # 🥇 华医网小助手
 
 > 全网唯一真实免费 | 无人值守 | 自动静音 | 视频助手 | 考试助手 | 不疲劳
+>
+> **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强
 
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-brightgreen.svg)](https://greasyfork.org/scripts/483418)
+[![Version](https://img.shields.io/badge/version-2.1.1-brightgreen.svg)](https://greasyfork.org/scripts/483418)
 [![Platform](https://img.shields.io/badge/platform-Tampermonkey%20%7C%20Violentmonkey-orange.svg)](https://www.tampermonkey.net/)
 
 华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放及考试答题，真正实现**无人值守**。
@@ -38,6 +40,12 @@
 - 屏蔽倍速检测定时器 `blockAbnormalPlugin`
 - 覆盖 `blockAbnormalPlugin` 全局函数，静默异常插件提示
 
+### 🔓 登录页自动填充解锁（v2.1.0 新增）
+- **解除官方对浏览器自动填充的禁用** — 华医网登录页通过 `autocomplete` 禁用、密码框伪装、隐藏蜜罐假框等手段阻止浏览器保存/回填账号密码（详见下方「官方蜜罐陷阱」），本脚本在 document-start 阶段把这些限制解除
+- **Edge 正常保存/回填** — 登录页账号密码可像普通网站一样由 Edge 自动回填，首次登录后 Edge 会提示保存密码
+- **自动勾选协议** — 自动勾选「我已仔细阅读并同意」复选框，省去手动操作
+- **解锁提示条** — 登录页顶部显示解锁说明，可点击 ✕ 关闭（关闭后不再显示）
+
 ### 🔀 双模切换
 - **模式一：单刷视频** — 只自动播放视频，不进入考试
 - **模式二：视频+考试** — 视频播放完毕后自动进入考试答题
@@ -49,7 +57,7 @@
 ### 手动安装
 
 1. 安装 Tampermonkey 浏览器扩展（同上）
-2. 下载 `华医网小助手2.0.0.user.js` 文件
+2. 下载 `hua-yi-helper.user.js` 文件
 3. 将文件拖入浏览器窗口，Tampermonkey 会弹出安装提示
 4. 确认安装即可
 
@@ -57,10 +65,10 @@
 
 ## 🚀 使用方法
 
-1. 安装脚本后，打开 [华医网](https://www.91huayi.com) 并登录
+1. 安装脚本后，打开 [华医网](https://www.91huayi.com) 并登录（**登录页已自动解锁账号密码填充**：首次登录后 Edge 会提示保存密码，之后打开登录页自动回填，只需输入图形验证码）
 2. 进入任意课程列表页（`course.aspx` / `cme.aspx`），脚本将**自动扫描**并开始学习
 3. 也可以直接进入视频页或考试页，脚本会自动执行对应任务
-4. 页面左上角会显示控制面板，可查看脚本运行状态
+4. 页面左上角会显示控制面板，可拖拽移动、最小化，支持调节透明度
 
 ### 模式切换
 
@@ -80,6 +88,38 @@
 | CC 视频 | `*.91huayi.com/course_ware/course_ware_cc.aspx*` | 自动播放+静音 |
 | 考试页 | `*.91huayi.com/pages/exam.aspx*` | 自动答题+交卷 |
 | 考试结果 | `*.91huayi.com/pages/exam_result.aspx*` | 自动返回课程列表 |
+| 登录页 | `*.91huayi.com/secure/login.aspx*` | 解锁账号密码自动填充 |
+
+---
+
+## 🕳️ 官方禁用自动填充的蜜罐陷阱（v2.1.0 修复背景）
+
+2026 年华医网登录页（`secure/login.aspx`）为阻止浏览器自动填充账号密码，使出了**三招组合拳**：
+
+| # | 手段 | 效果 |
+|---|------|------|
+| ① | 密码框 `autocomplete="new-password"`、账号框 `autocomplete="off"` | 浏览器认为这是"注册新密码"场景，拒绝回填已保存的密码 |
+| ② | 密码框 `type="text"`（伪装成普通文本框） | 破坏 Edge 识别"密码框"并提示保存的硬前提，浏览器根本不认为它是密码框 |
+| ③ | `display:none` 隐藏蜜罐假框（标准 `username`/`password` 假框） | 即使浏览器尝试填充，也会被诱导把凭据填进看不见的假框，真实输入框依旧空白 |
+
+**结果**：用户每次登录都必须手动输入账号密码，Edge 密码库形同虚设。
+
+**本脚本的对策**（document-start 阶段、浏览器自动填充之前执行）：
+1. 密码框还原为 `type="password"` + `autocomplete="current-password"`
+2. 账号框还原为 `autocomplete="username"`
+3. 蜜罐假框的 `autocomplete` 全部降级为 `off`，防止凭据被填入假框
+4. 自动勾选「我已仔细阅读并同意」协议复选框
+
+改造后登录页与普通网站无异：Edge 正常保存、自动回填账号密码，协议自动勾选，用户只需输入图形验证码即可登录。
+
+---
+
+## ⚠️ 已知限制
+
+- **图形验证码** — 图形码无法可靠 OCR，需要用户手动输入一次（首次登录后 Edge 保存密码，后续只需输验证码）
+- **考试助手** — 试错算法仅适用于允许多次提交的考试类型；若官方改为单次提交则该功能失效
+- **多子域差异** — 华医网有多个子域（`cme28` 刷课、`hysslogin` SSO 登录、`xkjspc` 主站），各子域页面结构不同，脚本针对特定页面适配
+- **学时上报** — 本地播放完成检测已解决切课问题，但"学完上报"仍依赖官方服务端异步更新，播完立即切课可能有几秒上报延迟（已用二次确认缓解）
 
 ---
 
@@ -93,6 +133,16 @@
 ---
 
 ## 📝 更新日志
+
+### v2.1.1（2026.8.24）
+- 🆕 控制面板增强：支持拖拽移动、最小化折叠、透明度调节，状态自动保存
+- 🆕 登录页自动勾选「我已仔细阅读并同意」协议复选框
+- 🗑️ 删除独立登录解锁脚本（已集成到主脚本）
+
+### v2.1.0（2026.8.24）
+- 🆕 新增登录页自动填充解锁：解除官方 `autocomplete` 禁用 + 密码框伪装 + 蜜罐假框三重陷阱，Edge 可正常保存/回填账号密码，登录页显示解锁提示条（可关闭）
+- 🔧 修复华医网 8 月下旬改版后无法自动切换视频（新增本地播放完成检测，播到结尾即强制切下一课；切课 URL 规范化直达 polyv 播放器页）
+- 🆕 新增四创作者 Arthurfsy2
 
 ### v2.0.0（2026.6.9）
 - 🆕 新增课程列表页自动扫描功能，按优先级自动进入未完成课程
@@ -128,6 +178,7 @@
 
 | 角色 | 作者 |
 |------|------|
+| **四创作者** | Arthurfsy2 |
 | **三创作者** | Mriio |
 | **二创作者** | 境界程序员 |
 | **原创作者** | Dr.S |
@@ -143,5 +194,6 @@
 ## 🔗 相关链接
 
 - [Tampermonkey 官网](https://www.tampermonkey.net/)
+- [GitHub 仓库（Arthurfsy2 fork）](https://github.com/arthurfsy2/hua-yi-helper)
 
 ---

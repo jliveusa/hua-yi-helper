@@ -1,8 +1,9 @@
 ﻿// ==UserScript==
 // @name         🥇【华医网小助手】全网唯一真实免费|无人值守|自动静音|视频助手|考试助手|不疲劳
 // @namespace    http://tampermonkey.net/
-// @version      2.0.2
-// @author       三创作者：Mriio   二创作者：境界程序员   原创作者：Dr.S
+// @version      2.1.1
+// @description  适配华医网 2026.8.24 最新改版（v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
+// @author       四创作者：Arthurfsy2   三创作者：Mriio   二创作者：境界程序员   原创作者：Dr.S
 // @license      AGPL License
 // @match        *://*.91huayi.com/course_ware/course_ware_polyv.aspx?*
 // @match        *://*.91huayi.com/course_ware/course_ware_cc.aspx*
@@ -11,11 +12,11 @@
 // @match        *://*.91huayi.com/*
 // @grant        none
 // @run-at       document-start
-// @downloadURL  https://raw.githubusercontent.com/miiky-nerm/hua-yi-helper/main/hua-yi-helper.user.js
-// @updateURL    https://raw.githubusercontent.com/miiky-nerm/hua-yi-helper/main/hua-yi-helper.user.js
+// @downloadURL  https://raw.githubusercontent.com/arthurfsy2/hua-yi-helper/main/hua-yi-helper.user.js
+// @updateURL    https://raw.githubusercontent.com/arthurfsy2/hua-yi-helper/main/hua-yi-helper.user.js
 // ==/UserScript==
 
-var newupdate = "2026.6.10 新增暂停刷新跳转功能：视频暂停后等3秒刷新页面，若状态为已完成/待考试则自动搜索下一未学习/学习中课程继续学习。";
+var newupdate = "2026.8.24 v2.0.3-fix 修复华医网改版后无法自动切换视频：新增本地播放完成检测（不依赖 getMaxPlayTime/状态翻转），播到结尾即强制切下一课；切课 URL 规范化直达 polyv 播放器页。2026.8.24 v2.1.0 新增登录页自动填充解锁：解除官方对浏览器自动填充的禁用（密码框还原 type=password + autocomplete=current-password、账号框 username、清掉 display:none 蜜罐假框），Edge 可正常保存/回填账号密码，登录页顶部显示解锁提示条。2026.8.24 v2.1.1 面板增强：可拖拽移动+可最小化+透明度滑块，状态自动保存；删除独立登录解锁脚本（已集成）。";
 //更新历史
 //■2026.6.10 新增暂停刷新跳转功能：视频暂停后等3秒刷新页面，若状态为已完成/待考试则自动搜索下一未学习/学习中课程
 //■2026.6.9 新增课程列表页自动扫描功能：在课程列表页(course.aspx/cme.aspx)自动识别"未学习"、"播放至：x%"、"学习中"的课程，按优先级依次点击进入学习，实现从课程列表无人值守自动刷课。
@@ -173,14 +174,129 @@ var newupdate = "2026.6.10 新增暂停刷新跳转功能：视频暂停后等3�
                 } catch(e) {}
             }
         });
-        _bodyObserver.observe(document.documentElement, { childList: true, subtree: true });
+        _bodyObserver.observe(document.documentElement || document, { childList: true, subtree: true });
     }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 登录页(secure/login.aspx)自动填充解锁 —— document-start 立即执行
+// 官方禁用浏览器自动填充的三招：
+//   ① 密码框 autocomplete="new-password" + 账号框 autocomplete="off"
+//   ② 密码框 type="text"（非 password，Edge 识别密码框并提示保存的硬前提被破坏）
+//   ③ display:none 蜜罐假框（标准 username/password），诱导浏览器把凭据填进看不见的框
+// 本模块把这些属性还原，让 Edge 像普通网站一样正常保存/回填账号密码。
+// 不自动填表、不做复杂操作，仅在登录页顶部显示一条解锁提示条（可关闭）。
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+    'use strict';
+    if (location.hostname.indexOf('91huayi.com') === -1) return;
+    var tipShown = false;
+
+    function unlock() {
+        // ① 密码框还原为标准密码框
+        var pwd = document.getElementById('txt_user_pwd');
+        if (pwd) {
+            pwd.setAttribute('type', 'password');
+            pwd.setAttribute('autocomplete', 'current-password');
+        }
+        // ② 账号框还原
+        var user = document.getElementById('txt_user_name');
+        if (user) {
+            user.setAttribute('autocomplete', 'username');
+        }
+        // ③ 蜜罐假框全部降级为 off
+        var divs = document.querySelectorAll('div[style*="display: none"], div[style*="display:none"]');
+        for (var i = 0; i < divs.length; i++) {
+            var inputs = divs[i].querySelectorAll('input');
+            for (var j = 0; j < inputs.length; j++) {
+                inputs[j].setAttribute('autocomplete', 'off');
+            }
+        }
+        // ④ 自动勾选"我已仔细阅读并同意"协议复选框
+        var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        for (var k = 0; k < checkboxes.length; k++) {
+            var label = checkboxes[k].parentElement ? checkboxes[k].parentElement.textContent : '';
+            if (label.indexOf('同意') !== -1 || label.indexOf('协议') !== -1 || label.indexOf('保护政策') !== -1) {
+                if (!checkboxes[k].checked) {
+                    checkboxes[k].checked = true;
+                    checkboxes[k].dispatchEvent(new Event('change', { bubbles: true }));
+                    checkboxes[k].dispatchEvent(new Event('click', { bubbles: true }));
+                }
+                break;
+            }
+        }
+    }
+
+    function showTip() {
+        if (tipShown) return;
+        // 使用 v2 key，旧版已关闭的不受影响（新功能新提示）
+        try { if (localStorage.getItem('hyu_unlock_tip_dismissed_v2')) return; } catch (e) {}
+        tipShown = true;
+
+        function doInsert() {
+            // 防重复
+            if (document.getElementById('hyu-unlock-tip')) return;
+
+            var tip = document.createElement('div');
+            tip.id = 'hyu-unlock-tip';
+            tip.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;' +
+                'background:#eaf6fb;border-bottom:1px solid #188AAE;' +
+                'color:#0e5d7a;padding:10px 20px;' +
+                'font:13px/1.5 "Microsoft YaHei",sans-serif;' +
+                'display:flex;align-items:center;justify-content:center;gap:10px;';
+            tip.innerHTML =
+                '<span style="font-size:18px;">🔓</span>' +
+                '<span>' +
+                    '<b>「华医网小助手」</b> 已解除官方浏览器自动填充限制，' +
+                    'Edge 现在可以正常保存/回填账号密码' +
+                '</span>' +
+                '<span id="hyu-unlock-tip-x" title="关闭" style="cursor:pointer;color:#188AAE;font-weight:700;font-size:16px;line-height:1;flex-shrink:0;padding:0 4px;">✕</span>';
+            (document.body || document.documentElement).appendChild(tip);
+            tip.querySelector('#hyu-unlock-tip-x').addEventListener('click', function () {
+                try { localStorage.setItem('hyu_unlock_tip_dismissed_v2', '1'); } catch (e) {}
+                if (tip.parentNode) tip.parentNode.removeChild(tip);
+            });
+        }
+
+        if (document.body) {
+            doInsert();
+        } else {
+            document.addEventListener('DOMContentLoaded', doInsert);
+            window.addEventListener('load', doInsert);
+        }
+    }
+
+    function tryUnlock() {
+        if (document.getElementById('txt_user_pwd')) {
+            unlock();
+            showTip();
+            return true;
+        }
+        return false;
+    }
+
+    // MutationObserver 抢在 Edge 自动填充之前把属性改好（document 一定存在，稳妥）
+    var root = document.documentElement || document;
+    var obs = new MutationObserver(function () {
+        if (tryUnlock()) obs.disconnect();
+    });
+    try { obs.observe(root, { childList: true, subtree: true }); } catch (e) {}
+    // 多级兜底：立即试一次 + DOM 就绪 + load（幂等）
+    tryUnlock();
+    document.addEventListener('DOMContentLoaded', function () { tryUnlock(); });
+    window.addEventListener('load', function () { tryUnlock(); });
 })();
 
 // Wait for DOM ready since @run-at document-start
 function __hyInit__() {
 (function () {
     'use strict';
+
+    // 【登录页分流】secure/login.aspx 的自动填充解锁由顶层 IIFE 处理，这里直接返回
+    if (document.getElementById('txt_user_pwd')) {
+        console.log('【华医网小助手】检测到登录页，仅启用自动填充解锁');
+        return;
+    }
 
     // 【存活证明】在页面左上角注入一个不可见的标记，证明脚本已注入
     try {
@@ -492,6 +608,7 @@ function __hyInit__() {
                         default:
                             console.log("其他播放器？");
                     };
+                    startWatchEnd(); //【修复 2026.8.24】启动本地播放完成检测（不依赖华医网状态翻转）
 
                 };
             },
@@ -1159,22 +1276,35 @@ function __hyInit__() {
         var modeColor = modeIsExam ? "#e8f5e9" : "#f0f7ff";
         var modeBorder = modeIsExam ? "#a5d6a7" : "#d0e4f7";
         var modeTextColor = modeIsExam ? "#2e7d32" : "#1976d2";
+        // 恢复面板位置/透明度/折叠状态
+        var savedPos = null, savedOpacity = 1, savedCollapsed = false;
+        try {
+            var sp = JSON.parse(localStorage.getItem("hyu_panel_pos"));
+            if (sp && typeof sp.x === "number" && typeof sp.y === "number") savedPos = sp;
+            var so = localStorage.getItem("hyu_panel_opacity");
+            if (so !== null) savedOpacity = parseFloat(so);
+            savedCollapsed = localStorage.getItem("hyu_panel_collapsed") === "1";
+        } catch(e) {}
+        var initTop = savedPos ? savedPos.y : 180;
+        var initLeft = savedPos ? savedPos.x : 40;
         div1.innerHTML = `
     <div id='Div1' style="
         width: 240px;
         font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;
         font-size: 14px;
         position: fixed;
-        top: 180px;
-        left: 40px;
+        top: `+ initTop +`px;
+        left: `+ initLeft +`px;
         z-index: 99999;
-        background: #ffffff;
+        background: rgba(255,255,255,`+ savedOpacity +`);
         border: 1px solid #e0e0e0;
         border-radius: 8px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.12);
         overflow: hidden;
+        transition: opacity 0.3s;
+        user-select: none;
     ">
-        <div style="
+        <div id="hyu-panel-header" style="
             background: linear-gradient(135deg, #4cb0f9, #3a8fd4);
             color: #fff;
             padding: 12px 16px;
@@ -1183,11 +1313,15 @@ function __hyInit__() {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: move;
         ">
             <span>华医网小助手 v`+ (typeof GM_info !== 'undefined' ? GM_info['script']['version'] : '2.0.2') + `</span>
-            <span id='clo' style="cursor:pointer;font-size:18px;line-height:1;opacity:0.85;" title="关闭面板">×</span>
+            <span style="display:flex;gap:8px;align-items:center;">
+                <span id='hyu-minimize' style="cursor:pointer;font-size:16px;line-height:1;opacity:0.85;" title="最小化面板">─</span>
+                <span id='clo' style="cursor:pointer;font-size:18px;line-height:1;opacity:0.85;" title="关闭面板">×</span>
+            </span>
         </div>
-        <div style="padding: 14px 16px;">
+        <div id="hyu-panel-body" style="padding: 14px 16px;`+ (savedCollapsed ? 'display:none;' : '') +`">
             <div id="tixing" style="
                 font-size: 13px;
                 color: #666;
@@ -1241,6 +1375,23 @@ function __hyInit__() {
                     <span class="speedBtn" data-rate="3" style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;cursor:pointer;background:#e0e0e0;color:#555;user-select:none;">3x</span>
                 </div>
             </div>
+            <div id="hyu-opacity-section" style="
+                font-size: 13px;
+                color: #333;
+                line-height: 1.6;
+                padding: 10px 12px;
+                background: #fafafa;
+                border-radius: 4px;
+                border: 1px solid #e8e8e8;
+                margin-bottom: 10px;
+            ">
+                <div style="font-weight:bold;margin-bottom:6px;color:#555;">面板透明度</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:11px;color:#999;">透明</span>
+                    <input id="hyu-opacity-slider" type="range" min="20" max="100" value="`+ Math.round(savedOpacity*100) +`" style="flex:1;cursor:pointer;">
+                    <span style="font-size:11px;color:#999;">不透明</span>
+                </div>
+            </div>
             <div id='update' style="
                 font-size: 12px;
                 color: #999;
@@ -1255,11 +1406,75 @@ function __hyInit__() {
     </div>`;
         if (document.body) { document.body.append(div1); } else { document.addEventListener("DOMContentLoaded", function() { document.body.append(div1); }); }
 
+        // ====== 拖拽功能 ======
+        var panel = document.getElementById("Div1");
+        var header = document.getElementById("hyu-panel-header");
+        if (panel && header) {
+            var isDragging = false, dragOffsetX = 0, dragOffsetY = 0;
+            header.addEventListener("mousedown", function(e) {
+                if (e.target.id === "clo" || e.target.id === "hyu-minimize") return;
+                isDragging = true;
+                dragOffsetX = e.clientX - panel.getBoundingClientRect().left;
+                dragOffsetY = e.clientY - panel.getBoundingClientRect().top;
+                e.preventDefault();
+            });
+            document.addEventListener("mousemove", function(e) {
+                if (!isDragging) return;
+                var newX = e.clientX - dragOffsetX;
+                var newY = e.clientY - dragOffsetY;
+                // 限制在视口内
+                newX = Math.max(0, Math.min(window.innerWidth - 60, newX));
+                newY = Math.max(0, Math.min(window.innerHeight - 30, newY));
+                panel.style.left = newX + "px";
+                panel.style.top = newY + "px";
+            });
+            document.addEventListener("mouseup", function() {
+                if (isDragging) {
+                    isDragging = false;
+                    // 保存位置
+                    try {
+                        localStorage.setItem("hyu_panel_pos", JSON.stringify({
+                            x: parseInt(panel.style.left),
+                            y: parseInt(panel.style.top)
+                        }));
+                    } catch(e) {}
+                }
+            });
+        }
+
+        // ====== 透明度控制 ======
+        var opacitySlider = document.getElementById("hyu-opacity-slider");
+        if (opacitySlider && panel) {
+            opacitySlider.addEventListener("input", function() {
+                var val = parseInt(this.value) / 100;
+                panel.style.background = "rgba(255,255,255," + val + ")";
+                try { localStorage.setItem("hyu_panel_opacity", String(val)); } catch(e) {}
+            });
+        }
+
+        // ====== 最小化按钮 ======
+        var minBtn = document.getElementById("hyu-minimize");
+        var panelBody = document.getElementById("hyu-panel-body");
+        if (minBtn && panelBody) {
+            // 初始状态恢复
+            if (savedCollapsed) {
+                panelBody.style.display = "none";
+                minBtn.textContent = "□";
+                minBtn.title = "展开面板";
+            }
+            minBtn.onclick = function () {
+                var isHidden = panelBody.style.display === "none";
+                panelBody.style.display = isHidden ? "block" : "none";
+                minBtn.textContent = isHidden ? "─" : "□";
+                minBtn.title = isHidden ? "最小化面板" : "展开面板";
+                try { localStorage.setItem("hyu_panel_collapsed", isHidden ? "0" : "1"); } catch(e) {}
+            };
+        }
+
         // 关闭按钮
-        var clo = document.querySelector("span[id='clo']");
+        var clo = document.getElementById("clo");
         if (clo) {
             clo.onclick = function () {
-                var panel = document.querySelector("div[id='Div1']");
                 if (panel) panel.style.display = "none";
             };
         }
@@ -1314,6 +1529,74 @@ function __hyInit__() {
             })(speedBtns[s]);
         }
     };
+
+    // ====== 【修复 2026.8.24】本地播放完成检测：华医网改版后 getMaxPlayTime() 被移除、
+    // 状态不再即时翻转为"已完成/待考试"，旧逻辑永远等不到学完信号。改为直接用播放器
+    // 时间 API 判断"视频已播到结尾"，播完即切下一课。 ======
+    var watchEndTimer = null;
+    var watchEndLastMark = 0;
+    function startWatchEnd() {
+        if (watchEndTimer) { clearInterval(watchEndTimer); watchEndTimer = null; }
+        watchEndTimer = setInterval(function () {
+            try {
+                if (courseFinished || Date.now() < navCooldownUntil) return;
+                var v = document.querySelector("video");
+                if (!v) return;
+                var dur = v.duration;
+                var cur = v.currentTime;
+                // 兜底1：polyv j2s API
+                if (window.player) {
+                    try {
+                        if (typeof window.player.j2s_getDuration === "function") {
+                            var d2 = window.player.j2s_getDuration();
+                            if (d2 && d2 > 0) dur = d2;
+                        }
+                        if (typeof window.player.j2s_getCurrentTime === "function") {
+                            var t2 = window.player.j2s_getCurrentTime();
+                            if (t2 && t2 > 0) cur = t2;
+                        }
+                    } catch (e) {}
+                }
+                // 兜底2：cc 播放器
+                if (typeof cc_js_Player !== "undefined" && cc_js_Player) {
+                    try {
+                        if (typeof cc_js_Player.duration === "function") { var d3 = cc_js_Player.duration(); if (d3 && d3 > 0) dur = d3; }
+                        if (typeof cc_js_Player.currentTime === "function") { var t3 = cc_js_Player.currentTime(); if (t3 && t3 > 0) cur = t3; }
+                    } catch (e) {}
+                }
+                if (!dur || dur <= 0) return;
+                if (cur >= dur - 3) {
+                    // 已到结尾：先标记，4秒后二次确认（防抖动），再强制切课
+                    if (!watchEndLastMark) { watchEndLastMark = Date.now(); return; }
+                    if (Date.now() - watchEndLastMark < 4000) return;
+                    watchEndLastMark = 0;
+                    var state = getCurrentCourseState();
+                    if (state === "已完成" || state === "待考试") { watchEndLastMark = 0; return; } // 华医网已翻状态，交给原逻辑
+                    console.log("【华医网小助手·修复】视频播完但状态仍为[" + state + "]，强制切换下一课");
+                    courseFinished = true;
+                    if (clock) { clearInterval(clock); clock = null; }
+                    if (clockms) { clearInterval(clockms); clockms = null; }
+                    if (watchEndTimer) { clearInterval(watchEndTimer); watchEndTimer = null; }
+                    playNext();
+                } else {
+                    watchEndLastMark = 0;
+                }
+            } catch (e) {}
+        }, 2000);
+    }
+
+    // ====== 【修复 2026.8.24】切课 URL 规范化：onclick 里的 course_ware.aspx 是详情页，
+    // 直接改写为 course_ware_polyv.aspx（播放器页），避免一次服务端重定向，并补默认参数 ======
+    function extractNavUrl(onclickAttr) {
+        var m = (onclickAttr || "").match(/location\.href=['"]([^'"]+)['"]/);
+        if (!m || !m[1]) return null;
+        var u = m[1];
+        if (/course_ware\.aspx/i.test(u) && !/course_ware_(polyv|cc)\.aspx/i.test(u)) {
+            u = u.replace(/course_ware\.aspx/i, "course_ware_polyv.aspx");
+            if (!/[\?&]ff=/.test(u)) u += (u.indexOf("?") >= 0 ? "&" : "?") + "ff=0&ft=0&t=0";
+        }
+        return u;
+    }
 
     // 获取侧边栏课程项的状态文本（待考试/学习中/未学习/已完成等）
     function getCourseStatus(li) {
@@ -1420,12 +1703,12 @@ function __hyInit__() {
                     // 优先使用 li 元素的 onclick 跳转（提取 href 直接跳转更可靠）
                     var targetLi = lis[index];
                     var navigated = false;
-                    // 方式1: 从 onclick 属性提取 url 直接跳转
+                    // 方式1: 从 onclick 属性提取 url 直接跳转（【修复 2026.8.24】规范化到 polyv 播放器页）
                     var onclickAttr = targetLi.getAttribute("onclick") || "";
-                    var urlMatch = onclickAttr.match(/location\.href=['"]([^'"]+)['"]/);
-                    if (urlMatch && urlMatch[1]) {
-                        console.log("通过 onclick 提取 URL 跳转: " + urlMatch[1]);
-                        window.location.href = urlMatch[1];
+                    var navUrl = extractNavUrl(onclickAttr);
+                    if (navUrl) {
+                        console.log("通过 onclick 提取 URL 跳转: " + navUrl);
+                        window.location.href = navUrl;
                         navigated = true;
                     }
                     if (!navigated) {
