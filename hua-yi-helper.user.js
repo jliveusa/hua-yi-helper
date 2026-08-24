@@ -494,22 +494,26 @@ function __hyInit__() {
       });
     } else {
       console.log("其它情况");
-      // 【2026.8.24】自动关闭课程列表页的 Vue 弹窗（wind_layer）
-      (function autoCloseWindLayer() {
+      // 【2026.8.24】自动关闭课程列表页的弹窗
+      (function autoClosePopups() {
         function tryClose() {
+          // 关闭 Vue 弹窗（wind_layer）
           var checkbox = document.querySelector('.wind_layer .checkbox-input');
-          var btn = document.querySelector('.wind_layer .imp_btn');
+          var windBtn = document.querySelector('.wind_layer .imp_btn');
           if (checkbox && !checkbox.checked) {
             checkbox.checked = true;
             checkbox.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          if (btn) btn.click();
+          if (windBtn) windBtn.click();
+          // 关闭提示弹窗（layer_tips）
+          var tipBtn = document.getElementById('btn_course_tip_ok');
+          if (tipBtn) tipBtn.click();
         }
         // 立即尝试
         setTimeout(tryClose, 1000);
         // MutationObserver 兜底（Vue 异步渲染）
         var observer = new MutationObserver(function () {
-          if (document.querySelector('.wind_layer .imp_btn')) {
+          if (document.querySelector('.wind_layer .imp_btn') || document.getElementById('btn_course_tip_ok')) {
             tryClose();
             observer.disconnect();
           }
@@ -2158,21 +2162,57 @@ function __hyInit__() {
         // 注意：clock 在 seeVideo 初始化中通过 onload 重新设置
         // clockms 在 killsendQuestion3 中重新创建（由 seeVideo 调用）
       }
-    } // 从 playNext 中抽出的 fallback 逻辑：查找并点击未学习/学习中/待考试的课程
+    } // 从 playNext 中抽出的 fallback 逻辑：查找并点击学习中/未学习/待考试的课程
     function fallbackToNextCourse() {
       // 严格按优先级查找，排除"已完成"
       var allBtns = document.querySelectorAll('button, input[type="button"]');
       var found = false;
-      // 优先级：未学习 > 学习中 > 待考试(mode2)
       var mode = localStorage.getItem("华医mode");
-      var priorities = ["未学习", "学习中"];
-      if (mode == "2") priorities.push("待考试");
-      for (var p = 0; p < priorities.length && !found; p++) {
+
+      // 第1优先级：学习中（按进度百分比降序，优先完成度高的）
+      var learningBtns = [];
+      for (var b2 = 0; b2 < allBtns.length; b2++) {
+        var val2 = allBtns[b2].value || allBtns[b2].textContent || "";
+        if (val2.trim() === "学习中") {
+          var progress = 0;
+          var container = allBtns[b2].parentElement;
+          if (container) {
+            var containerText = container.textContent || "";
+            var pctMatch = containerText.match(/(\d+)\s*%/);
+            if (pctMatch) {
+              progress = parseInt(pctMatch[1]);
+            }
+          }
+          learningBtns.push({ el: allBtns[b2], progress: progress });
+        }
+      }
+      learningBtns.sort(function (a, b) {
+        return b.progress - a.progress;
+      });
+      for (var m = 0; m < learningBtns.length; m++) {
+        var item = learningBtns[m];
+        console.log(
+          "找到【学习中】课程（进度" + item.progress + "%），开始学习",
+        );
+        var sib2 = item.el.parentElement.querySelector("a[href]");
+        if (!sib2)
+          sib2 =
+            item.el.previousElementSibling || item.el.nextElementSibling;
+        if (sib2 && sib2.tagName === "A") {
+          sib2.click();
+        } else {
+          item.el.click();
+        }
+        found = true;
+        break;
+      }
+
+      // 第2优先级：未学习
+      if (!found) {
         for (var b = 0; b < allBtns.length; b++) {
           var val = allBtns[b].value || allBtns[b].textContent || "";
-          if (val.trim() === priorities[p]) {
-            console.log("找到" + priorities[p] + "课程，开始学习");
-            // 点击按钮的兄弟链接
+          if (val.trim() === "未学习") {
+            console.log("找到【未学习】课程，开始学习");
             var sib = allBtns[b].parentElement.querySelector("a[href]");
             if (!sib)
               sib =
@@ -2188,6 +2228,29 @@ function __hyInit__() {
           }
         }
       }
+
+      // 第3优先级：待考试（mode2）
+      if (!found && mode == "2") {
+        for (var b3 = 0; b3 < allBtns.length; b3++) {
+          var val3 = allBtns[b3].value || allBtns[b3].textContent || "";
+          if (val3.trim() === "待考试") {
+            console.log("找到【待考试】课程，开始学习");
+            var sib3 = allBtns[b3].parentElement.querySelector("a[href]");
+            if (!sib3)
+              sib3 =
+                allBtns[b3].previousElementSibling ||
+                allBtns[b3].nextElementSibling;
+            if (sib3 && sib3.tagName === "A") {
+              sib3.click();
+            } else {
+              allBtns[b3].click();
+            }
+            found = true;
+            break;
+          }
+        }
+      }
+
       if (!found) {
         console.log("没有找到任何待处理按钮，可能全部已完成");
         if (clock) {
@@ -2294,24 +2357,48 @@ function __hyInit__() {
       }
 
       var clicked = false;
-
-      // ========== 第1优先级：查找"未学习"的课程 ==========
-      console.log("  → 查找【未学习】课程...");
       var allElements = document.querySelectorAll(
         'button, input[type="button"], span, div, a.btn, td, font',
       );
-      for (var i = 0; i < allElements.length; i++) {
-        var el = allElements[i];
-        var text = (el.textContent || el.value || el.innerText || "").trim();
-        // 精确匹配，并且排除"已完成"
-        if (
-          (text === "未学习" || text.indexOf("未学习") === 0) &&
-          text.indexOf("已完成") === -1
-        ) {
-          if (tryClickCourse(el, "找到【未学习】课程")) {
-            clicked = true;
-            break;
+
+      // ========== 第1优先级：查找"学习中"的课程（按进度百分比降序，优先完成度高的） ==========
+      console.log("  → 查找【学习中】课程（按进度排序）...");
+      var learningCourses = [];
+      for (var k = 0; k < allElements.length; k++) {
+        var el2 = allElements[k];
+        var text2 = (el2.textContent || el2.value || "").trim();
+        if (text2 === "学习中" && text2.indexOf("已完成") === -1) {
+          // 向上查找父级容器，提取百分比数字
+          var progress = 0;
+          var container = el2.closest
+            ? el2.closest(
+                "tr, .course-item, .list-item, li, .card, [class*='course'], [class*='item'], td, div",
+              )
+            : el2.parentElement;
+          if (container) {
+            var containerText = container.textContent || "";
+            var pctMatch = containerText.match(/(\d+)\s*%/);
+            if (pctMatch) {
+              progress = parseInt(pctMatch[1]);
+            }
           }
+          learningCourses.push({ el: el2, progress: progress });
+        }
+      }
+      // 按进度降序排列，优先完成度高的课程
+      learningCourses.sort(function (a, b) {
+        return b.progress - a.progress;
+      });
+      for (var m = 0; m < learningCourses.length; m++) {
+        var item = learningCourses[m];
+        if (
+          tryClickCourse(
+            item.el,
+            "找到【学习中】课程（进度" + item.progress + "%）",
+          )
+        ) {
+          clicked = true;
+          break;
         }
       }
 
@@ -2346,14 +2433,18 @@ function __hyInit__() {
         }
       }
 
-      // ========== 第3优先级：查找"学习中"的课程 ==========
+      // ========== 第3优先级：查找"未学习"的课程 ==========
       if (!clicked) {
-        console.log("  → 查找【学习中】课程...");
-        for (var k = 0; k < allElements.length; k++) {
-          var el2 = allElements[k];
-          var text2 = (el2.textContent || el2.value || "").trim();
-          if (text2 === "学习中" && text2.indexOf("已完成") === -1) {
-            if (tryClickCourse(el2, "找到【学习中】课程")) {
+        console.log("  → 查找【未学习】课程...");
+        for (var i = 0; i < allElements.length; i++) {
+          var el = allElements[i];
+          var text = (el.textContent || el.value || el.innerText || "").trim();
+          // 精确匹配，并且排除"已完成"
+          if (
+            (text === "未学习" || text.indexOf("未学习") === 0) &&
+            text.indexOf("已完成") === -1
+          ) {
+            if (tryClickCourse(el, "找到【未学习】课程")) {
               clicked = true;
               break;
             }
