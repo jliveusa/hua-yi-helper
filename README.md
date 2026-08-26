@@ -5,10 +5,10 @@
 > **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强 + 课堂问答自动试错
 
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.2.1-brightgreen.svg)](https://greasyfork.org/scripts/483418)
+[![Version](https://img.shields.io/badge/version-2.2.1-brightgreen.svg)](https://github.com/arthurfsy2/hua-yi-helper)
 [![Platform](https://img.shields.io/badge/platform-Tampermonkey%20%7C%20Violentmonkey-orange.svg)](https://www.tampermonkey.net/)
 
-华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放及考试答题，真正实现**无人值守**。
+华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放、课堂问答及**统一课程考核**答题，真正实现**无人值守**。
 
 > 👑 **四创作者 Arthurfsy2 主导维护** — 登录解锁、面板增强、2026 改版适配、课堂问答试错、统一考核助手等核心新功能均为**四创独有开发**（下文以 🏆 标注）
 
@@ -66,12 +66,24 @@
 
 ## 📦 安装方式
 
+> 📌 本仓库脚本**尚未发布到 GreasyFork**，请直接从本仓库下载安装。
+
 ### 手动安装
 
-1. 安装 Tampermonkey 浏览器扩展（同上）
+1. 安装 Tampermonkey 浏览器扩展（Chrome：[应用商店](https://chromewebstore.google.com/detail/dhdgffkkebhmkfjojejmpbldmpobfkfo) / Edge：[加载项](https://microsoftedge.microsoft.com/addons/detail/iikmkjmpaadaimahpihffkgbhfmcpkmf)）
 2. 下载 `hua-yi-helper.user.js` 文件
 3. 将文件拖入浏览器窗口，Tampermonkey 会弹出安装提示
 4. 确认安装即可
+
+### 统一考核自动答题助手（独立脚本）
+
+> 配套脚本：`hua-yi-exam-auto-answer.user.js`（与主脚本**互不影响**，可按需另装）
+
+1. 同样将 `hua-yi-exam-auto-answer.user.js` 拖入浏览器窗口安装
+2. 登录华医网后进入**统一课程考核**页（`sdnew.91huayi.com/ExamInterface/ComputerExamIndex*`），脚本自动匹配题库并作答：
+   - 自动识别题目 → 点选答案（单选/多选/判断）→ 自动切下一题
+   - 答完 20 题后页面提示「已自动作答，请人工核对后交卷」——**不会自动交卷**
+3. 内置题库：2026 公需课《人工智能赋能高质量发展》20 题；遇到新题可在脚本 `Q_BANK` 数组追加一条（关键词+选项+答案），也可通过 issue/PR 共享题库
 
 ---
 
@@ -100,6 +112,7 @@
 | CC 视频 | `*.91huayi.com/course_ware/course_ware_cc.aspx*` | 自动播放+静音 |
 | 考试页 | `*.91huayi.com/pages/exam.aspx*` | 自动答题+交卷 |
 | 考试结果 | `*.91huayi.com/pages/exam_result.aspx*` | 自动返回课程列表 |
+| 统一考核 | `sdnew.91huayi.com/ExamInterface/ComputerExamIndex*`（独立脚本） | 自动匹配题库答题 |
 | 登录页 | `*.91huayi.com/secure/login.aspx*` | 解锁账号密码自动填充 |
 
 ---
