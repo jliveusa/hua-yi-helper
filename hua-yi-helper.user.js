@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         🥇【华医网小助手】全网唯一真实免费|无人值守|自动静音|视频助手|考试助手|不疲劳
 // @namespace    http://tampermonkey.net/
-// @version      2.2.0
+// @version      2.2.1
 // @description  适配华医网 2026.8.24 最新改版（v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
 // @author       四创作者：Arthurfsy2   三创作者：Mriio   二创作者：境界程序员   原创作者：Dr.S
 // @license      AGPL License
@@ -17,6 +17,7 @@
 // ==/UserScript==
 
 var newupdate =
+  "2026.8.25 v2.2.1 课堂问答自动试错答题（华医网自有组件，允许重复提交）\n" +
   "2026.8.24 v2.2.0 课程跳转优先级：学习中(高%)优先；自动关闭layer_tips弹窗\n" +
   "2026.8.24 v2.1.1 面板可拖拽/最小化/调透明度；登录页自动勾选协议\n" +
   "2026.8.24 v2.1.0 登录页自动填充解锁（Edge 可保存密码）+ 登录提示条\n" +
@@ -662,6 +663,7 @@ function __hyInit__() {
           killsendQuestion2(); //屏蔽课堂问答的函数2；
 
           killsendQuestion3(); //循环检测问答对话框是否弹出。
+          qaStart(); //【v2.2.1】课堂问答自动试错答题（华医网自有组件）
 
           // 倍速按钮和脚本信息已整合到 advis() 面板中
           //速度调节部分
@@ -2540,6 +2542,169 @@ function __hyInit__() {
           "   提示：如页面有未学习课程但脚本未识别，请在Greasyfork反馈区留言。",
         );
       }
+    }
+
+    // ════════ 【v2.2.1】课堂问答自动试错答题 ════════
+    // 华医网视频页的自有"课堂问答"组件（标题"课堂问答" + 单选选项 + 提交按钮），
+    // 不走 Polyv 的 sendQuestion 通道，旧逻辑（asynckillsendQuestion/.pv-ask-skip）拦截不到。
+    // 已实测：该组件允许重复提交 → 用试错算法依次点击选项→提交→弹窗消失即答对。
+    // 答案按题目记忆到 localStorage（JJ_QA_Answer），下次遇到直接命中，不再试错。
+    var qaTimer = null;
+    var qaState = { widget: null, triedIndex: -1, lastSubmitAt: 0 };
+    var qaKey = "JJ_QA_Answer";
+    var qaLogKey = "JJ_QA_Log"; // 答题记录（最近 20 条，页面/agent 可读）
+
+    // 记录课堂问答动作（localStorage，纯油猴挂机场景可回查；时间=北京时间）
+    function qaLog(msg) {
+      try {
+        var arr = JSON.parse(localStorage.getItem(qaLogKey)) || [];
+        arr.push(new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(11, 19) + " " + msg);
+        if (arr.length > 20) arr = arr.slice(-20);
+        localStorage.setItem(qaLogKey, JSON.stringify(arr));
+      } catch (e) {}
+    }
+
+    // 查找"课堂问答"弹窗：找可见的"提交"按钮，向上找含"课堂问答"文本的容器
+    function qaFindWidget() {
+      var btns = document.querySelectorAll("button");
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i];
+        if (!b.offsetParent) continue;
+        var bt = (b.textContent || "").trim();
+        if (bt.indexOf("提交") === -1) continue;
+        var p = b.parentElement;
+        for (var d = 0; d < 6 && p; d++) {
+          if ((p.textContent || "").indexOf("课堂问答") !== -1) return p;
+          p = p.parentElement;
+        }
+      }
+      return null;
+    }
+
+    // 提取题目（用于答案记忆 key）
+    function qaExtractQuestion(w) {
+      var t = (w.textContent || "").replace(/\s+/g, " ").trim();
+      var idx = t.indexOf("课堂问答");
+      var q = idx >= 0 ? t.slice(idx + 4) : t;
+      return q.slice(0, 60);
+    }
+
+    // 提取选项元素（华医网真实弹窗的 A/B 是自定义 div/span 模拟单选，不是真 input）
+    function qaExtractOptions(w) {
+      var opts = [];
+      // 1) 优先: label / 含 option/answer/choice/radio class 的元素
+      var nodes = w.querySelectorAll('label, [class*="option"], [class*="answer"], [class*="choice"], [class*="radio"]');
+      // 2) 兜底: 弹窗内所有 div/span/li/p，筛 textContent 符合"选项"模式的
+      if (nodes.length === 0) {
+        nodes = w.querySelectorAll('div, span, li, p');
+      }
+      for (var i = 0; i < nodes.length; i++) {
+        var o = nodes[i];
+        if (!o.offsetParent) continue;
+        var txt = (o.textContent || "").trim();
+        if (!txt) continue;
+        if (txt.indexOf("提交") !== -1 || txt.indexOf("课堂问答") !== -1) continue;
+        if (txt.length > 80) continue;  // 严格短文本（华医网选项通常 < 40 字符）
+        // 选项特征：以 A./B./C./D. 开头，或"正确/错误/是/否/对/错"
+        if (!/^[A-D][\.\s:：、]\s*\S|^[A-D]\s*$|^\s*(正确|错误|是|否|对|错)\s*$/i.test(txt)) continue;
+        // 去重
+        var dup = false;
+        for (var j = 0; j < opts.length; j++) {
+          if (opts[j].text === txt.slice(0, 60)) { dup = true; break; }
+        }
+        if (dup) continue;
+        opts.push({ el: o, text: txt.slice(0, 60) });
+      }
+      return opts;
+    }
+
+    // 在弹窗内找"提交"按钮
+    function qaFindSubmit(w) {
+      var btns = w.querySelectorAll("button");
+      for (var i = 0; i < btns.length; i++) {
+        if ((btns[i].textContent || "").indexOf("提交") !== -1) return btns[i];
+      }
+      return null;
+    }
+
+    // 主循环：每 2 秒检测一次课堂问答
+    function qaStart() {
+      if (qaTimer) {
+        clearInterval(qaTimer);
+        qaTimer = null;
+      }
+      qaTimer = setInterval(function () {
+        try {
+          var w = qaFindWidget();
+          if (!w) {
+            // 弹窗已消失（答对/跳过）或尚未出现
+            if (qaState.widget) qaLog("弹窗已消失（答对），本次课堂问答完成");
+            qaState.widget = null;
+            qaState.triedIndex = -1;
+            return;
+          }
+          var opts = qaExtractOptions(w);
+          if (opts.length === 0) {
+            // 只在首次检测到弹窗但找不到选项时记录（避免每 2 秒刷屏）
+            if (qaState.widget !== w) qaLog("⚠️ 检测到课堂问答弹窗但未找到选项（DOM 结构可能变化）");
+            return;
+          }
+
+          // 提交后留 3 秒给服务端校验，期间不动作（避免误判"答错"）
+          if (qaState.widget === w && Date.now() - qaState.lastSubmitAt < 3000) return;
+
+          var q = qaExtractQuestion(w);
+          var mem = {};
+          try { mem = JSON.parse(localStorage.getItem(qaKey)) || {}; } catch (e) {}
+
+          if (qaState.widget !== w) {
+            // 新弹窗：先查记忆，命中直接选
+            qaState.widget = w;
+            qaLog("检测到课堂问答弹窗，找到 " + opts.length + " 个选项");
+            if (mem[q] !== undefined && mem[q] >= 0 && mem[q] < opts.length) {
+              console.log("【华医网小助手·课堂问答】记忆命中，直接选第 " + (mem[q] + 1) + " 项");
+              qaLog("记忆命中，直接选第 " + (mem[q] + 1) + " 项");
+              qaState.triedIndex = mem[q];
+              try { opts[mem[q]].el.click(); } catch (e) { qaLog("点击选项异常: " + e.message); }
+              var sb = qaFindSubmit(w);
+              if (sb) { sb.click(); qaState.lastSubmitAt = Date.now(); }
+              return;
+            }
+            qaState.triedIndex = -1;
+          }
+
+          // 弹窗仍在且过判定时间 → 上一个答案错了 → 试下一个
+          qaState.triedIndex++;
+          if (qaState.triedIndex >= opts.length) {
+            // 所有选项都试过还错（弹窗还没消失）→ 不再循环，提示用户
+            if (qaState.triedIndex === opts.length) {
+              qaLog("❌ 所有 " + opts.length + " 个选项都试错，弹窗仍存在（请人工答或检查是否被锁）");
+            }
+            qaState.triedIndex = 0; // 保险
+            return;
+          }
+          console.log(
+            "【华医网小助手·课堂问答】尝试第 " +
+              (qaState.triedIndex + 1) +
+              " 项: " +
+              opts[qaState.triedIndex].text,
+          );
+          qaLog("尝试第 " + (qaState.triedIndex + 1) + " 项: " + opts[qaState.triedIndex].text);
+          try { opts[qaState.triedIndex].el.click(); } catch (e) { qaLog("点击选项异常: " + e.message); }
+          var sub = qaFindSubmit(w);
+          if (sub) {
+            sub.click();
+            qaState.lastSubmitAt = Date.now();
+          } else {
+            qaLog("⚠️ 弹窗内未找到提交按钮");
+          }
+          // 先记当前索引；若答错，下一轮会覆盖为下一索引；答对则弹窗消失，保留的就是正确答案
+          mem[q] = qaState.triedIndex;
+          try { localStorage.setItem(qaKey, JSON.stringify(mem)); } catch (e) {}
+        } catch (e) {
+          console.log("【华医网小助手·课堂问答】异常: " + e.message);
+        }
+      }, 2000);
     }
 
     //---------------------------------全局函数区end------------------------------//

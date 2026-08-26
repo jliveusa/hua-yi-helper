@@ -2,10 +2,10 @@
 
 > 全网唯一真实免费 | 无人值守 | 自动静音 | 视频助手 | 考试助手 | 不疲劳
 >
-> **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强
+> **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强 + 课堂问答自动试错
 
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.1.1-brightgreen.svg)](https://greasyfork.org/scripts/483418)
+[![Version](https://img.shields.io/badge/version-2.2.1-brightgreen.svg)](https://greasyfork.org/scripts/483418)
 [![Platform](https://img.shields.io/badge/platform-Tampermonkey%20%7C%20Violentmonkey-orange.svg)](https://www.tampermonkey.net/)
 
 华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放及考试答题，真正实现**无人值守**。
@@ -27,6 +27,12 @@
 - **正确答案记忆** — 记住已通过的正确答案，下次遇到相同题目自动填写
 - **自动交卷** — 答题完成后自动提交试卷
 - **结果页自动返回** — 考试结果页面自动返回课程列表继续学习
+- **课堂问答自动试错（v2.2.1 新增）** — 华医网自有"课堂问答"组件（不走 Polyv 通道），自动依次点击选项→提交→弹窗消失即答对，答案记忆到 localStorage，下次直接命中
+
+### 🧠 统一考核自动答题（独立脚本）
+> 配套脚本：`hua-yi-exam-auto-answer.user.js`（另装，互不影响）
+
+华医网**统一课程考核**（`sdnew.91huayi.com` 新考试系统）与旧版考试页结构完全不同，主脚本不覆盖。独立脚本内置 2026 公需课《人工智能赋能高质量发展》20 题题库（单选7+多选6+判断7），自动匹配题目→点选答案→切题，答完提示人工核对（**不自动交卷**）。题库可扩展：遇到新题在 `Q_BANK` 数组追加一条即可。
 
 ### 📋 课程列表自动扫描（v2.0.0 新增）
 - 进入课程列表页自动按优先级扫描并进入学习：
@@ -133,6 +139,10 @@
 ---
 
 ## 📝 更新日志
+
+### v2.2.1（2026.8.26）
+- 🆕 课堂问答自动试错答题：适配华医网自有"课堂问答"组件（非 Polyv 通道），依次试选项→提交→答对即停，答案记忆到 localStorage
+- 🆕 配套新增统一考核自动答题助手 `hua-yi-exam-auto-answer.user.js`（独立脚本，内置 2026 公需课 20 题题库）
 
 ### v2.1.1（2026.8.24）
 - 🆕 控制面板增强：支持拖拽移动、最小化折叠、透明度调节，状态自动保存

@@ -10,6 +10,15 @@ scripts/mimo-search.mjs
 scripts/.env.local
 test-screenshots/
 
+# 日志与运行状态（含个人信息页面截图，严禁上传）
+logs/
+
+# 一次性考试协同/诊断脚本（本地保留，不提交）
+scripts/exam-collab*.js
+scripts/check-exam-status.js
+
 # Node
 node_modules/
 package*.json
+
+.workbuddy
