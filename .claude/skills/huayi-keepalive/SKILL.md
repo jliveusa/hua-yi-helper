@@ -8,13 +8,50 @@ description: 检查华医网刷课调度器(auto-looper)的保活状态。正常
 检查 `auto-looper` 是否还活着：**正常→汇报进度，异常→自动重启**，两种结果都发通知。
 这是无人值守任务，重启是核心职责，不要只报告不动手。
 
+## 前置条件
+
+- **工作目录**：所有命令都基于 **hua-yi-helper 仓库根目录**执行，也就是含
+  `scripts/`、`logs/`、`hua-yi-helper.user.js` 的那一级。
+  若 `pwd` 查到的不是这里，先 `cd` 进来再继续。
+  （注意：**不要用 SKILL.md 自身的位置去推导工作目录** —— 本文件位于
+  `.claude/skills/huayi-keepalive/` 下，与 `scripts/`、`logs/` 相差 3 级，不在根目录。）
+  文档里出现的 `logs/...` `scripts/...` 都是相对路径，agent 用 `Read` 工具读时必须自己拼成
+  绝对路径（Read 工具要求 `file_path` 必须是绝对路径）。
+- **配套脚本**：本 skill 依赖 `scripts/` 下的调度器与通知脚本
+  （`auto-looper.mjs`、`notify-mail.js`、`lib/vision-ocr.cjs`）。
+  这些属于本地私有工具，**未随仓库发布**。若是 clone 本仓库后首次使用，
+  需先自备这些脚本，否则本 skill 无法工作。
+- **平台**：本 skill 当前依赖 Windows（`taskkill`、PowerShell `Get-CimInstance`）。
+  WorkBuddy 桌面端也以 Windows 为主。Mac/Linux 需要替换第 3、5 步的进程查询/终止命令。
+- **Shell**：第 0、5b、6 步的命令均为 POSIX / Git Bash 语法（`MAIL_SUBJECT="x" node ...`），
+  **不是 cmd.exe 语法**。Claude Code 与 WorkBuddy 默认在 Git Bash 下执行命令，
+  不需要改写为 Windows cmd 风格。
+
 ## 0. 首次运行：两个可选功能的配置自检
+
+**先做 cwd 自检（在执行任何判定前）**：确认以下两个文件都存在，否则**立即中止**并明确告知用户
+"工作目录不对，请在 hua-yi-helper 仓库根目录执行"——绝不许继续往下判定：
+
+- `hua-yi-helper.user.js`
+- `.claude/skills/huayi-keepalive/SKILL.md`
+
+> 哨兵文件为什么选这两个：二者都是**随仓库发布**的文件，任何环境（本机或全新 clone）
+> 只要 cwd 正确就一定存在，组合起来也足以唯一确定"这是 hua-yi-helper 仓库根目录"。
+> 不要改用 `package.json` 或 `scripts/` 下的文件当哨兵 —— 它们都在 `.gitignore` 里，
+> clone 环境下根本不存在，会在 cwd 完全正确时误报"工作目录不对"，
+> 把这道防误判的闸门变成新的误判来源。
+
+> 为什么必须有这一道：第 4 步判定 D 是"进程不存在且 status.json 不存在"。
+> 若 cwd 错了，`logs/auto-looper-status.json` 读不到会被误判为"不存在"，
+> 命中模板 D → 给你发"调度器未运行，请手动启动"的邮件。
+> 而真实情况可能是调度器正跑得好好的（最糟的 silent 错报）。
+> cwd 自检就是要把这种"看似合理的错误结论"提前拦下。
 
 本 skill 依赖的两个功能**都是可选的**，不配置也能跑，只是能力降级。
 第一次运行（或用户主动询问配置）时，执行自检并把结果原样告知用户：
 
 ```bash
-cd D:\web\hua-yi-helper && node scripts/notify-mail.js --check
+node scripts/notify-mail.js --check
 ```
 
 - 输出 `MAIL_ENABLED` → 邮件通知可用，按下文模板发信。
@@ -45,7 +82,7 @@ baseURL / 模型名。配置细节见 `scripts/lib/vision-ocr.cjs` 顶部注释�
 
 ## 1. 读取状态文件
 
-`D:\web\hua-yi-helper\logs\auto-looper-status.json`（可能不存在 → 见第 4 步判定 D）
+`logs/auto-looper-status.json`（可能不存在 → 见第 4 步判定 D）
 
 字段以实际结构为准，**注意有多个数据源和降级路径**：
 
@@ -73,7 +110,7 @@ baseURL / 模型名。配置细节见 `scripts/lib/vision-ocr.cjs` 顶部注释�
 
 ## 2. 读取日志尾部
 
-读 `D:\web\hua-yi-helper\logs\auto-looper.log` 最后 30 行，提取：
+读 `logs/auto-looper.log` 最后 30 行，提取：
 
 - 最近一条 `📺 正在学习: {标题} | 视频 {N}% ({X}s/{Y}s) | 本包 {D}/{T} | 总进度 {P}%（{C}分/{T}分），剩余约 {H}h`
 - 最近一条 `✅ 已刷完课程: {标题} | 本包已完成 {D}/{T}，剩余 {K} 节` → 没有则填「暂无」
@@ -133,10 +170,12 @@ taskkill /F /PID <第3步查到的PID>
 重跑第 3 步确认没有 auto-looper 进程了，再用 Bash 工具（`run_in_background=true`）启动：
 
 ```bash
-cd "D:\web\hua-yi-helper" && node scripts/auto-looper.mjs --headless > logs/auto-looper-run.log 2>&1
+node scripts/auto-looper.mjs --headless > logs/auto-looper-run.log 2>&1
 ```
 
-（若 `node` 不在 PATH，用 `"C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2\node.exe"` 代替）
+（若 `node` 不在 PATH：Windows 上 WorkBuddy 自带 Node，路径形如
+`C:\Users\<用户名>\.workbuddy\binaries\node\versions\<版本>\node.exe`；
+macOS / Linux 上用 `which node` 查实际路径后调用）
 
 **注意**：若验证码识别未配置，调度器会忽略 `--headless` 并弹出窗口等人工输码。
 此时不要判定为"重启成功"，要在通知里写明需要人工介入。
@@ -154,7 +193,7 @@ cd "D:\web\hua-yi-helper" && node scripts/auto-looper.mjs --headless > logs/auto
 不要在这里写任何邮箱地址**）：
 
 ```bash
-cd D:\web\hua-yi-helper && MAIL_SUBJECT="标题" MAIL_BODY="正文" node scripts/notify-mail.js
+MAIL_SUBJECT="标题" MAIL_BODY="正文" node scripts/notify-mail.js
 ```
 
 按退出码处理：
@@ -170,7 +209,7 @@ cd D:\web\hua-yi-helper && MAIL_SUBJECT="标题" MAIL_BODY="正文" node scripts
 邮件未配置或发送失败时，把完整通知正文**追加**（绝不覆盖）到：
 
 ```
-D:\web\hua-yi-helper\.workbuddy\memory\<YYYY-MM-DD>.md
+.workbuddy/memory/<YYYY-MM-DD>.md
 ```
 
 ---
@@ -231,7 +270,7 @@ Subject：`【❌ 重启失败】华医网刷课调度器（{tsLocal}）`
 ⚠️ 异常：{原始失败原因}
 🔧 已尝试：{执行了什么操作}
 ❌ 结果：{重启后 status.json 仍不存在或无活动}
-📋 建议：请手动检查 D:\web\hua-yi-helper\logs\auto-looper-run.log
+📋 建议：请手动检查 logs/auto-looper-run.log
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 此邮件由定时任务自动发送
 ```
@@ -245,7 +284,7 @@ Subject：`【⚠️ 调度器未运行】华医网刷课（{tsLocal}）`
 【⚠️ 调度器未运行】华医网刷课（{tsLocal}）
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 未发现 auto-looper 进程或 status.json 文件。
-建议：在 D:\web\hua-yi-helper 目录执行
+建议：在 hua-yi-helper 目录执行
       node scripts/auto-looper.mjs --headless
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 此邮件由定时任务自动发送

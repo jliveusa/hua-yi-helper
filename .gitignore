@@ -4,10 +4,17 @@ local/
 # 开发文档（含技术细节，不公开）
 docs/
 
-# 本地自动化/测试/诊断脚本（整目录不公开）
-# 仓库只发布油猴脚本本身；Node 侧的登录态导出、无人值守调度器、
-# 邮件通知、E2E 测试等全部为本地私有工具，不进版本库。
-scripts/
+# 本地脚本目录：默认全部不公开，仅以白名单逐个放行。
+# ⚠️ 绝不要改成整目录放开 —— 这里曾存在硬编码明文密钥的一次性测试脚本，
+#    白名单是防止此类文件被误提交的最后一道闸门。
+scripts/*
+scripts/lib/*
+!scripts/auto-looper.mjs
+!scripts/login-and-save-state.js
+!scripts/notify-mail.js
+!scripts/lib/
+!scripts/lib/vision-ocr.cjs
+!scripts/.env.local.example
 test-screenshots/
 
 # 日志与运行状态（含个人信息页面截图，严禁上传）
