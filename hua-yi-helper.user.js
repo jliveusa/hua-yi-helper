@@ -1,8 +1,8 @@
 ﻿// ==UserScript==
 // @name         🥇【华医网小助手】全网唯一真实免费|无人值守|自动静音|视频助手|考试助手|不疲劳
 // @namespace    http://tampermonkey.net/
-// @version      2.2.1
-// @description  适配华医网 2026.8.24 最新改版（v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
+// @version      2.2.2
+// @description  适配华医网 2026.8.24 最新改版（v2.2.2 修复课程页 iframe 重复面板；v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
 // @author       四创作者：Arthurfsy2   三创作者：Mriio   二创作者：境界程序员   原创作者：Dr.S
 // @license      AGPL License
 // @match        *://*.91huayi.com/course_ware/course_ware_polyv.aspx?*
@@ -11,12 +11,14 @@
 // @match        *://*.91huayi.com/pages/exam_result.aspx?*
 // @match        *://*.91huayi.com/*
 // @grant        none
+// @noframes
 // @run-at       document-start
 // @downloadURL  https://raw.githubusercontent.com/arthurfsy2/hua-yi-helper/main/hua-yi-helper.user.js
 // @updateURL    https://raw.githubusercontent.com/arthurfsy2/hua-yi-helper/main/hua-yi-helper.user.js
 // ==/UserScript==
 
 var newupdate =
+  "2026.8.27 v2.2.2 修复课程页出现多个面板（脚本不再注入 iframe）\n" +
   "2026.8.25 v2.2.1 课堂问答自动试错答题（华医网自有组件，允许重复提交）\n" +
   "2026.8.24 v2.2.0 课程跳转优先级：学习中(高%)优先；自动关闭layer_tips弹窗\n" +
   "2026.8.24 v2.1.1 面板可拖拽/最小化/调透明度；登录页自动勾选协议\n" +
@@ -49,10 +51,26 @@ var newupdate =
 //■2023.12.1调整默认播放速度5倍（仅首次登录起效，后续以用户更改过的倍速保存），免得用户感觉不到脚本在运行
 
 // ═══════════════════════════════════════════
+// 顶层窗口判定（配合 @noframes 双保险）
+// 课程页嵌了 4 个同域 iframe（临床指南/用药帮手/临床路径/华医AI），
+// 若脚本注入 iframe 会各自弹出一个"此页面非视频、考试或未适配"面板。
+// 仅在顶层窗口运行，iframe 内一律不执行。
+// ═══════════════════════════════════════════
+function __hyIsTopFrame__() {
+  try {
+    return window.top === window.self;
+  } catch (e) {
+    // 跨域访问 window.top 抛异常 → 说明当前就在 iframe 里
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════
 // 反作弊拦截（document-start阶段执行）
 // 必须在页面脚本注册click监听器之前拦截
 // ═══════════════════════════════════════════
 (function () {
+  if (!__hyIsTopFrame__()) return;
   // 【核心修复0】最早时机：保存原始 console 方法，防止页面脚本覆盖
   var _rawConsole = {};
   try {
@@ -208,6 +226,7 @@ var newupdate =
 // ═══════════════════════════════════════════════════════════════════════════
 (function () {
   "use strict";
+  if (!__hyIsTopFrame__()) return;
   if (location.hostname.indexOf("91huayi.com") === -1) return;
   var tipShown = false;
 
@@ -329,6 +348,7 @@ var newupdate =
 
 // Wait for DOM ready since @run-at document-start
 function __hyInit__() {
+  if (!__hyIsTopFrame__()) return;
   (function () {
     "use strict";
 

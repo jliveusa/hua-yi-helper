@@ -5,7 +5,7 @@
 > **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强 + 课堂问答自动试错
 
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.2.1-brightgreen.svg)](https://github.com/arthurfsy2/hua-yi-helper)
+[![Version](https://img.shields.io/badge/version-2.2.2-brightgreen.svg)](https://github.com/arthurfsy2/hua-yi-helper)
 [![Platform](https://img.shields.io/badge/platform-Tampermonkey%20%7C%20Violentmonkey-orange.svg)](https://www.tampermonkey.net/)
 
 华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放、课堂问答及**统一课程考核**答题，真正实现**无人值守**。
@@ -158,6 +158,9 @@
 ---
 
 ## 📝 更新日志
+
+### v2.2.2（2026.8.27）
+- 🐛 修复课程页出现多个助手面板：课件页嵌了 4 个同域 iframe（临床指南 / 用药帮手 / 临床路径 / 华医AI），脚本被逐个注入后各自弹出一个「此页面非视频、考试或未适配」面板。现加 `@noframes` + 顶层窗口运行时守卫，iframe 内一律不执行（感谢邮件反馈的用户）
 
 ### v2.2.1（2026.8.26）🏆 四创独有
 - 🆕 课堂问答自动试错答题：适配华医网自有"课堂问答"组件（非 Polyv 通道），依次试选项→提交→答对即停，答案记忆到 localStorage

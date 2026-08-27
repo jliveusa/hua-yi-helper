@@ -4,18 +4,17 @@ local/
 # 开发文档（含技术细节，不公开）
 docs/
 
-# 临时测试/脚本文件（不公开）
-scripts/test-*.js
-scripts/mimo-search.mjs
-scripts/.env.local
+# 本地自动化/测试/诊断脚本（整目录不公开）
+# 仓库只发布油猴脚本本身；Node 侧的登录态导出、无人值守调度器、
+# 邮件通知、E2E 测试等全部为本地私有工具，不进版本库。
+scripts/
 test-screenshots/
 
 # 日志与运行状态（含个人信息页面截图，严禁上传）
 logs/
 
-# 一次性考试协同/诊断脚本（本地保留，不提交）
-scripts/exam-collab*.js
-scripts/check-exam-status.js
+# 本地 skills / agent 配置（可能含个人邮箱等信息）
+.claude/
 
 # Node
 node_modules/
