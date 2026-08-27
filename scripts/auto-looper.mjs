@@ -114,14 +114,11 @@ async function autoDetectHost(page) {
     if (!m) { log(`⚠️ 等待超时，当前主机名 "${host}"，非 cmeXX 格式，跳过自动写入`, 'WARN'); return; }
     const detected = m[1];
     if (detected === HUAYI_HOST) { log(`✔ HUAYI_HOST 已正确配置: ${detected}`); return; }
-    // 更新 .env.local
+    // 更新 .env.local（先删所有 HUAYI_HOST 行再统一加一行，避免重复空行）
     let env = '';
     try { env = fs.readFileSync(ENV_PATH, 'utf-8'); } catch (e) { env = ''; }
-    if (env.includes('HUAYI_HOST=')) {
-      env = env.replace(/^HUAYI_HOST=.+$/m, `HUAYI_HOST=${detected}`);
-    } else {
-      env = env.trimEnd() + `\nHUAYI_HOST=${detected}\n`;
-    }
+    env = env.replace(/^HUAYI_HOST=.*$/gm, '').trimEnd();
+    env += `\nHUAYI_HOST=${detected}\n`;
     fs.writeFileSync(ENV_PATH, env, 'utf-8');
     log(`✨ 已自动更新 HUAYI_HOST: ${HUAYI_HOST || '(空)'} → ${detected}`);
   } catch (e) {
