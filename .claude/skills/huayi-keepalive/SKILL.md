@@ -19,8 +19,9 @@ description: 检查华医网刷课调度器(auto-looper)的保活状态。正常
   绝对路径（Read 工具要求 `file_path` 必须是绝对路径）。
 - **配套脚本**：本 skill 依赖 `scripts/` 下的调度器与通知脚本
   （`auto-looper.mjs`、`notify-mail.js`、`lib/vision-ocr.cjs`）。
-  这些属于本地私有工具，**未随仓库发布**。若是 clone 本仓库后首次使用，
-  需先自备这些脚本，否则本 skill 无法工作。
+  这些脚本随仓库发布，clone 后即可使用。
+  首次运行需配置 `scripts/.env.local`（参见 `scripts/.env.local.example`），
+  否则验证码识别和邮件通知会降级为手动模式。
 - **平台**：本 skill 当前依赖 Windows（`taskkill`、PowerShell `Get-CimInstance`）。
   WorkBuddy 桌面端也以 Windows 为主。Mac/Linux 需要替换第 3、5 步的进程查询/终止命令。
 - **Shell**：第 0、5b、6 步的命令均为 POSIX / Git Bash 语法（`MAIL_SUBJECT="x" node ...`），

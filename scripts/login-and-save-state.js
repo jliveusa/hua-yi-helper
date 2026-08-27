@@ -44,9 +44,17 @@ const HOME_URL = HUAYI_HOST ? `https://${HUAYI_HOST}/cme/index` : '';
  */
 async function autoDetectHost(page) {
   try {
-    const host = await page.evaluate(() => window.location.hostname);
-    const m = host.match(/^(cme\d+\.91huayi\.com)$/);
-    if (!m) { console.log(`⚠️ 检测到主机名 "${host}"，非标准 cmeXX 格式，跳过自动写入`); return; }
+    // 等待重定向链完成：用户可能从 www.91huayi.com 或 hysslogin 登录，
+    // 会经过多次跳转才到达 cmeXX.91huayi.com。最多等 15 秒。
+    let host = '';
+    let m = null;
+    for (let i = 0; i < 15; i++) {
+      host = await page.evaluate(() => window.location.hostname);
+      m = host.match(/^(cme\d+\.91huayi\.com)$/);
+      if (m) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (!m) { console.log(`⚠️ 等待超时，当前主机名 "${host}"，非 cmeXX 格式，跳过自动写入`); return; }
     const detected = m[1];
     if (detected === HUAYI_HOST) { console.log(`✔ HUAYI_HOST 已正确配置: ${detected}`); return; }
     // 更新 .env.local
@@ -121,12 +129,15 @@ async function waitForManualLogin(page, timeoutMs = 300000) {
     });
 
     // 等待用户手动登录（最长 5 分钟）
+    // 用户可能从 www.91huayi.com 进入，经过 hysslogin 跳转，最终到达 cmeXX 子域。
+    // 必须等到 URL 稳定在 cmeXX.91huayi.com 才算登录成功。
     const deadline = Date.now() + 300000;
     let loggedIn = false;
     while (Date.now() < deadline) {
       const url = page.url();
-      // 检测是否已离开登录页（登录成功会跳转）
-      if (url.includes('91huayi.com') && !url.includes('login.aspx') && !url.includes('hysslogin')) {
+      const host = await page.evaluate(() => window.location.hostname);
+      // 最终目标：主机名匹配 cmeXX.91huayi.com
+      if (/^cme\d+\.91huayi\.com$/.test(host)) {
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
         await page.waitForTimeout(2000);
         loggedIn = true;

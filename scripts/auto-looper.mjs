@@ -101,9 +101,17 @@ const ENV_PATH = path.join(ROOT, 'scripts', '.env.local');
  */
 async function autoDetectHost(page) {
   try {
-    const host = await page.evaluate(() => window.location.hostname);
-    const m = host.match(/^(cme\d+\.91huayi\.com)$/);
-    if (!m) { log(`⚠️ 检测到主机名 "${host}"，非标准 cmeXX 格式，跳过自动写入`); return; }
+    // 等待重定向链完成：用户可能从 www.91huayi.com 或 hysslogin 登录，
+    // 会经过多次跳转才到达 cmeXX.91huayi.com。最多等 15 秒。
+    let host = '';
+    let m = null;
+    for (let i = 0; i < 15; i++) {
+      host = await page.evaluate(() => window.location.hostname);
+      m = host.match(/^(cme\d+\.91huayi\.com)$/);
+      if (m) break;
+      await sleep(1000);
+    }
+    if (!m) { log(`⚠️ 等待超时，当前主机名 "${host}"，非 cmeXX 格式，跳过自动写入`, 'WARN'); return; }
     const detected = m[1];
     if (detected === HUAYI_HOST) { log(`✔ HUAYI_HOST 已正确配置: ${detected}`); return; }
     // 更新 .env.local
