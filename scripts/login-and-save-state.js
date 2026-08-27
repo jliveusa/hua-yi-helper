@@ -35,8 +35,12 @@ const HUAYI_HOST = (() => {
     return m ? m[1].trim().replace(/^https?:\/\//, '').replace(/\/+$/, '') : '';
   } catch (e) { return ''; }
 })();
+// 登录入口：
+//   已配置 HUAYI_HOST → 直接用 cmeXX 子域登录页（自动填账号密码）
+//   未配置            → 用 www.91huayi.com 入口，等用户手动导航到登录页
 const LOGIN_URL = HUAYI_HOST ? `https://${HUAYI_HOST}/secure/login.aspx` : '';
 const HOME_URL = HUAYI_HOST ? `https://${HUAYI_HOST}/cme/index` : '';
+const ENTRY_URL = 'https://www.91huayi.com'; // 首次运行入口
 
 /**
  * 登录成功后自动检测 cmeXX 主机名并写入 .env.local。
@@ -109,34 +113,62 @@ async function waitForManualLogin(page, timeoutMs = 300000) {
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => false }); });
   const page = await ctx.newPage();
 
-  // ── 首次运行（HUAYI_HOST 为空）：打开空白页，等用户手动导航到华医网并登录 ──
+  // ── 首次运行（HUAYI_HOST 为空）：自动导航到登录入口，等用户完成登录 ──
   if (!HUAYI_HOST) {
     console.log('');
     console.log('═══════════════════════════════════════════════════════════');
     console.log('  首次运行：HUAYI_HOST 未配置');
-    console.log('  请在浏览器中手动打开华医网登录页并完成登录。');
+    console.log('  脚本将自动打开华医网并引导你完成登录。');
     console.log('  登录成功后脚本会自动检测主机名并写入配置。');
     console.log('═══════════════════════════════════════════════════════════');
     console.log('');
 
-    // 显示提示横幅
-    await page.goto('about:blank');
-    await page.evaluate(() => {
-      const b = document.createElement('div');
-      b.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;z-index:2147483647!important;background:#1976d2!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:bold 20px "Microsoft YaHei",sans-serif!important;text-align:center!important;';
-      b.innerHTML = '👤 请在浏览器地址栏输入华医网登录地址并完成登录<br><span style="font-size:14px;font-weight:normal;opacity:.9;margin-top:12px;display:block;">登录成功后脚本会自动检测并保存配置</span>';
-      document.body.appendChild(b);
-    });
+    // 第 1 步：打开 www.91huayi.com
+    console.log('🌐 打开华医网首页...');
+    await page.goto(ENTRY_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(3000);
 
-    // 等待用户手动登录（最长 5 分钟）
-    // 用户可能从 www.91huayi.com 进入，经过 hysslogin 跳转，最终到达 cmeXX 子域。
-    // 必须等到 URL 稳定在 cmeXX.91huayi.com 才算登录成功。
+    // 第 2 步：点击"继续教育"导航链接
+    console.log('🔗 点击"继续教育"...');
+    await page.evaluate(() => {
+      const links = document.querySelectorAll('a');
+      for (const a of links) {
+        if (a.textContent.trim() === '继续教育') { a.click(); return; }
+      }
+      // 兜底：点击导航栏中含"继续教育"的链接
+      const nav = document.querySelector('.nav, .menu, header');
+      if (nav) {
+        for (const a of nav.querySelectorAll('a')) {
+          if (a.textContent.includes('继续教育')) { a.click(); return; }
+        }
+      }
+    });
+    await page.waitForTimeout(3000);
+
+    // 第 3 步：点击弹窗中的"去登录"
+    console.log('🔑 点击"去登录"...');
+    await page.evaluate(() => {
+      // 查找弹窗中的"去登录"按钮
+      const btns = document.querySelectorAll('button, a, div[onclick], span[onclick]');
+      for (const b of btns) {
+        const t = (b.textContent || '').trim();
+        if (t === '去登录' || t === '去 登录') { b.click(); return; }
+      }
+      // 兜底：layui 弹窗按钮
+      const layBtns = document.querySelectorAll('.layui-layer-btn a, .layui-layer-btn0');
+      for (const b of layBtns) {
+        if ((b.textContent || '').includes('登录')) { b.click(); return; }
+      }
+    });
+    await page.waitForTimeout(3000);
+
+    // 第 4 步：等待重定向链完成，直到 cmeXX.91huayi.com 出现（最长 5 分钟）
+    // 流程：www → hysslogin.91huayi.com/callBack/ticket → cmeXX.91huayi.com
+    console.log('⏳ 等待登录重定向链完成...');
     const deadline = Date.now() + 300000;
     let loggedIn = false;
     while (Date.now() < deadline) {
-      const url = page.url();
       const host = await page.evaluate(() => window.location.hostname);
-      // 最终目标：主机名匹配 cmeXX.91huayi.com
       if (/^cme\d+\.91huayi\.com$/.test(host)) {
         await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
         await page.waitForTimeout(2000);
@@ -146,7 +178,8 @@ async function waitForManualLogin(page, timeoutMs = 300000) {
       await page.waitForTimeout(2000);
     }
     if (!loggedIn) {
-      console.log('⏰ 等待超时，未检测到登录成功。');
+      console.log('⏰ 等待超时，未检测到 cmeXX 子域登录成功。');
+      console.log('   当前地址:', page.url());
       await browser.close();
       process.exit(1);
     }
