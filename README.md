@@ -137,6 +137,25 @@
 因此无论是「浏览器装油猴手动刷」还是「WorkBuddy 无人值守托管」，
 用的都是同一份 `hua-yi-helper.user.js`，无需任何改动或分支版本。
 
+### 附带的保活巡检 Skill
+
+仓库内含一个 Claude Code / WorkBuddy skill：
+[`.claude/skills/huayi-keepalive/SKILL.md`](.claude/skills/huayi-keepalive/SKILL.md)
+
+用于定时巡检本地调度进程：正常则汇报刷课进度，异常则重启，全部刷完则识别为正常终态
+（不做无意义的重启）。两个可选能力**都不内置任何密钥或地址**，全部从本地
+`.env.local` 读取，不配置也能用，只是能力降级：
+
+| 能力 | 配置项 | 不配置时 |
+|------|--------|----------|
+| 验证码自动识别 | `VISION_BASE_URL` / `VISION_MODEL` / `VISION_API_KEY` | 弹出浏览器窗口，人工输入验证码 |
+| 邮件通知 | `RESEND_API_KEY` / `RESEND_FROM` / `RESEND_TO` | 巡检结果仅写本地日志 |
+
+验证码识别走 **OpenAI Chat Completions 通用格式**，任何兼容该格式、且模型支持图片输入的
+服务都能用（`VISION_BASE_URL` 填到 `/v1` 为止）。项目不预设任何服务商。
+
+> 调度器本体（Playwright 无人值守脚本）属于本地私有工具，不随仓库发布。
+
 ---
 
 ## 🕳️ 官方禁用自动填充的蜜罐陷阱（v2.1.0 修复背景）

@@ -13,8 +13,10 @@ test-screenshots/
 # 日志与运行状态（含个人信息页面截图，严禁上传）
 logs/
 
-# 本地 skills / agent 配置（可能含个人邮箱等信息）
-.claude/
+# 本地 agent 配置不公开，但 skills 需要随仓库发布
+# （SKILL.md 内不含任何邮箱/密钥，收发地址一律由脚本从 .env.local 读取）
+.claude/*
+!.claude/skills/
 
 # Node
 node_modules/
