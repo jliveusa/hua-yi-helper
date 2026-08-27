@@ -2763,13 +2763,22 @@ function __hyInit__() {
         return null;
       }
 
-      var cred = getCred();
-      if (!cred) {
-        console.log("【hysslogin登录助手】未找到凭据（localStorage hyw_cred），跳过自动填充");
-        return;
+      // 2) 解锁 Edge 自动填充：移除 Vue 设置的 autocomplete 阻碍属性
+      function unlockAutofill() {
+        document.querySelectorAll('input[autocomplete="new-password"], input[autocomplete="off"]').forEach(function (el) {
+          if (el.type === "password" || el.name === "password" || el.id === "password") {
+            el.setAttribute("autocomplete", "current-password");
+          } else if (el.type === "text" || el.name === "username" || el.id === "username") {
+            el.setAttribute("autocomplete", "username");
+          }
+        });
       }
+      unlockAutofill();
+      // MutationObserver 兜底：Vue 动态渲染的输入框也能解锁
+      var _unlockObserver = new MutationObserver(function () { unlockAutofill(); });
+      _unlockObserver.observe(document.documentElement, { childList: true, subtree: true });
 
-      // 2) 等待 Vue 实例挂载（Vue2 会在 #app 挂 __vue__）
+      // 3) 等待 Vue 实例挂载（Vue2 会在 #app 挂 __vue__）
       function waitVue(cb, tries) {
         tries = tries || 0;
         var app = document.getElementById("app");
@@ -2778,30 +2787,39 @@ function __hyInit__() {
         setTimeout(function () { waitVue(cb, tries + 1); }, 150);
       }
 
-      // 3) 主流程：切到密码登录 → 填账号密码 → 弹面板
+      // 4) 主流程：切到密码登录 → 填账号密码（如有） → 弹面板
       waitVue(function (vm) {
         try { vm.toPass(); } catch (e) { console.error("toPass 失败", e); }
         setTimeout(function () {
-          try {
-            vm.user.userName = cred.account;
-            vm.user.password = cred.password;
-            if ("displayValue" in vm) vm.displayValue = cred.password;
-            vm.check = true; // 勾选用户协议
-            console.log("【hysslogin登录助手】账号密码已填入");
-          } catch (e) { console.error("填值失败", e); }
+          var cred = getCred();
+          if (cred) {
+            try {
+              vm.user.userName = cred.account;
+              vm.user.password = cred.password;
+              if ("displayValue" in vm) vm.displayValue = cred.password;
+              vm.check = true;
+              console.log("【hysslogin登录助手】账号密码已填入");
+            } catch (e) { console.error("填值失败", e); }
+          } else {
+            console.log("【hysslogin登录助手】未找到凭据，请手动输入账号密码");
+            try { vm.check = true; } catch (e) {}
+          }
           buildPanel(vm, cred);
         }, 600);
       });
 
-      // 4) 浮动面板：放大验证码 + 输入框 + 提示 + 登录
+      // 5) 浮动面板：放大验证码 + 输入框 + 提示 + 登录
       function buildPanel(vm, cred) {
         if (document.getElementById("hy-login-panel")) return;
         var panel = document.createElement("div");
         panel.id = "hy-login-panel";
         panel.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:999999;width:300px;background:#fff;border:2px solid #188AAE;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);font-family:'Microsoft YaHei',sans-serif;padding:14px;color:#222;";
+        var tipText = cred
+          ? "已自动填好账号密码，请查看下方大图输入图形验证码："
+          : "未找到已保存的账号密码，请手动填写后输入图形验证码：";
         panel.innerHTML =
           '<div style="font-weight:700;color:#188AAE;margin-bottom:8px;font-size:15px;">🔐 华医网自动登录助手</div>' +
-          '<div style="font-size:12px;color:#666;margin-bottom:6px;">已自动填好账号密码，请查看下方大图输入图形验证码：</div>' +
+          '<div style="font-size:12px;color:#666;margin-bottom:6px;">' + tipText + '</div>' +
           '<img id="hy-verify-img" style="width:200px;height:75px;display:block;margin:0 auto 8px;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="点击刷新验证码">' +
           '<input id="hy-verify-input" type="text" autocomplete="off" maxlength="6" placeholder="请输入图形验证码" style="width:100%;box-sizing:border-box;padding:8px;font-size:15px;border:1px solid #188AAE;border-radius:6px;outline:none;letter-spacing:3px;text-align:center;">' +
           '<div id="hy-status" style="font-size:12px;color:#c0392b;min-height:16px;margin:6px 0;text-align:center;"></div>' +
