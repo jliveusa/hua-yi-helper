@@ -1,8 +1,8 @@
 ﻿// ==UserScript==
 // @name         🥇【华医网小助手】全网唯一真实免费|无人值守|自动静音|视频助手|考试助手|不疲劳
 // @namespace    http://tampermonkey.net/
-// @version      2.2.2
-// @description  适配华医网 2026.8.24 最新改版（v2.2.2 修复课程页 iframe 重复面板；v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
+// @version      2.2.3
+// @description  适配华医网 2026.8.24 最新改版（v2.2.3 非油猴环境版本号修复；v2.2.2 修复课程页 iframe 重复面板；v2.1.1 面板增强+自动勾选协议；v2.1.0 登录页自动填充解锁+视频连播修复）
 // @author       四创作者：Arthurfsy2   三创作者：Mriio   二创作者：境界程序员   原创作者：Dr.S
 // @license      AGPL License
 // @match        *://*.91huayi.com/course_ware/course_ware_polyv.aspx?*
@@ -17,7 +17,13 @@
 // @updateURL    https://raw.githubusercontent.com/arthurfsy2/hua-yi-helper/main/hua-yi-helper.user.js
 // ==/UserScript==
 
+// 脚本版本号（单一来源）。油猴环境优先读 GM_info；
+// 通过自动化框架（Playwright/WorkBuddy 等）注入时 GM_info 不存在，回退到此常量。
+// ⚠️ 修改时需与顶部 @version 保持一致。
+var HYU_VERSION = "2.2.3";
+
 var newupdate =
+  "2026.8.27 v2.2.3 修复非油猴环境注入时面板版本号显示错误\n" +
   "2026.8.27 v2.2.2 修复课程页出现多个面板（脚本不再注入 iframe）\n" +
   "2026.8.25 v2.2.1 课堂问答自动试错答题（华医网自有组件，允许重复提交）\n" +
   "2026.8.24 v2.2.0 课程跳转优先级：学习中(高%)优先；自动关闭layer_tips弹窗\n" +
@@ -1661,7 +1667,7 @@ function __hyInit__() {
             <span>华医网小助手 v` +
         (typeof GM_info !== "undefined"
           ? GM_info["script"]["version"]
-          : "2.1.1") +
+          : HYU_VERSION) +
         `</span>
             <span style="display:flex;gap:8px;align-items:center;">
                 <span id='hyu-minimize' style="cursor:pointer;font-size:16px;line-height:1;opacity:0.85;" title="最小化面板">─</span>

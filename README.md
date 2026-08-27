@@ -5,7 +5,7 @@
 > **📌 适配华医网 2026.8.24 最新改版** — 登录页自动填充解锁 + 视频连播修复 + 面板增强 + 课堂问答自动试错
 
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.2.2-brightgreen.svg)](https://github.com/arthurfsy2/hua-yi-helper)
+[![Version](https://img.shields.io/badge/version-2.2.3-brightgreen.svg)](https://github.com/arthurfsy2/hua-yi-helper)
 [![Platform](https://img.shields.io/badge/platform-Tampermonkey%20%7C%20Violentmonkey-orange.svg)](https://www.tampermonkey.net/)
 
 华医网小助手是一款运行在 [Tampermonkey](https://www.tampermonkey.net/) / [Violentmonkey](https://violentmonkey.github.io/) 上的用户脚本，全自动完成[华医网](https://www.91huayi.com) 的课程学习、视频播放、课堂问答及**统一课程考核**答题，真正实现**无人值守**。
@@ -115,6 +115,28 @@
 | 统一考核 | `sdnew.91huayi.com/ExamInterface/ComputerExamIndex*`（独立脚本） | 自动匹配题库答题 |
 | 登录页 | `*.91huayi.com/secure/login.aspx*` | 解锁账号密码自动填充 |
 
+> 脚本只在**顶层窗口**运行（`@noframes` + 运行时窗口判定）。课件页嵌了 4 个同域 iframe
+> （临床指南 / 用药帮手 / 临床路径 / 华医AI），若注入这些子框架会各自弹出一个控制面板，
+> v2.2.2 起已修复。
+
+---
+
+## 🤝 完全适配 WorkBuddy
+
+本脚本**不依赖油猴专有 API**，因此除了 Tampermonkey，也能直接被
+[WorkBuddy](https://github.com/arthurfsy2) 等自动化框架注入运行，两种方式功能完全一致：
+
+- **`@grant none`，零 `GM_*` 依赖** —— 全部逻辑为纯 DOM + `localStorage`，
+  唯一用到的 `GM_info` 仅用于显示版本号，且已带非油猴环境的回退（v2.2.3 修复了
+  该回退值不同步的问题）。
+- **`@run-at document-start` 语义可复现** —— 用 Playwright 的
+  `addInitScript` 注入即等价于油猴的 document-start 时机，反作弊拦截逻辑同样生效。
+- **状态全部落在 `localStorage`** —— 模式切换、播放倍速、面板位置/透明度等，
+  自动化框架复用浏览器 `storageState` 即可携带这些偏好，无需额外配置。
+
+因此无论是「浏览器装油猴手动刷」还是「WorkBuddy 无人值守托管」，
+用的都是同一份 `hua-yi-helper.user.js`，无需任何改动或分支版本。
+
 ---
 
 ## 🕳️ 官方禁用自动填充的蜜罐陷阱（v2.1.0 修复背景）
@@ -158,6 +180,9 @@
 ---
 
 ## 📝 更新日志
+
+### v2.2.3（2026.8.27）
+- 🐛 修复非油猴环境（Playwright / WorkBuddy 等自动化注入）下面板版本号显示错误：`GM_info` 不存在时的回退值被硬编码为旧版本，现改为与 `@version` 同步的单一常量
 
 ### v2.2.2（2026.8.27）
 - 🐛 修复课程页出现多个助手面板：课件页嵌了 4 个同域 iframe（临床指南 / 用药帮手 / 临床路径 / 华医AI），脚本被逐个注入后各自弹出一个「此页面非视频、考试或未适配」面板。现加 `@noframes` + 顶层窗口运行时守卫，iframe 内一律不执行（感谢邮件反馈的用户）
