@@ -27,22 +27,16 @@ if (!fs.existsSync(SD)) fs.mkdirSync(SD, { recursive: true });
 
 const account = JSON.parse(fs.readFileSync(path.join(ROOT, 'local', 'yhw_account.json'), 'utf-8'));
 
-// 站点域名（必填）：华医网按地区划分子域（形如 cmeXX.91huayi.com，各地区数字不同），
-// 故不内置默认值，从 scripts/.env.local 的 HUAYI_HOST 读取。
+// 站点域名：华医网按地区划分子域（形如 cmeXX.91huayi.com，各地区数字不同）。
+// 首次运行时可为空——脚本会打开浏览器让你手动导航到登录页，登录成功后自动检测并写入。
 const HUAYI_HOST = (() => {
   try {
     const m = fs.readFileSync(ENV_PATH, 'utf-8').match(/^HUAYI_HOST=(.+)$/m);
     return m ? m[1].trim().replace(/^https?:\/\//, '').replace(/\/+$/, '') : '';
   } catch (e) { return ''; }
 })();
-if (!HUAYI_HOST) {
-  console.error('[配置错误] 未设置 HUAYI_HOST。');
-  console.error('请在 scripts/.env.local 中添加：HUAYI_HOST=cmeXX.91huayi.com');
-  console.error('（把 XX 换成你实际看到的数字：浏览器登录华医网后，地址栏里的主机名就是它）');
-  process.exit(1);
-}
-const LOGIN_URL = `https://${HUAYI_HOST}/secure/login.aspx`;
-const HOME_URL = `https://${HUAYI_HOST}/cme/index`;
+const LOGIN_URL = HUAYI_HOST ? `https://${HUAYI_HOST}/secure/login.aspx` : '';
+const HOME_URL = HUAYI_HOST ? `https://${HUAYI_HOST}/cme/index` : '';
 
 /**
  * 登录成功后自动检测 cmeXX 主机名并写入 .env.local。
@@ -107,6 +101,62 @@ async function waitForManualLogin(page, timeoutMs = 300000) {
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'webdriver', { get: () => false }); });
   const page = await ctx.newPage();
 
+  // ── 首次运行（HUAYI_HOST 为空）：打开空白页，等用户手动导航到华医网并登录 ──
+  if (!HUAYI_HOST) {
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('  首次运行：HUAYI_HOST 未配置');
+    console.log('  请在浏览器中手动打开华医网登录页并完成登录。');
+    console.log('  登录成功后脚本会自动检测主机名并写入配置。');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
+
+    // 显示提示横幅
+    await page.goto('about:blank');
+    await page.evaluate(() => {
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;z-index:2147483647!important;background:#1976d2!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font:bold 20px "Microsoft YaHei",sans-serif!important;text-align:center!important;';
+      b.innerHTML = '👤 请在浏览器地址栏输入华医网登录地址并完成登录<br><span style="font-size:14px;font-weight:normal;opacity:.9;margin-top:12px;display:block;">登录成功后脚本会自动检测并保存配置</span>';
+      document.body.appendChild(b);
+    });
+
+    // 等待用户手动登录（最长 5 分钟）
+    const deadline = Date.now() + 300000;
+    let loggedIn = false;
+    while (Date.now() < deadline) {
+      const url = page.url();
+      // 检测是否已离开登录页（登录成功会跳转）
+      if (url.includes('91huayi.com') && !url.includes('login.aspx') && !url.includes('hysslogin')) {
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+        await page.waitForTimeout(2000);
+        loggedIn = true;
+        break;
+      }
+      await page.waitForTimeout(2000);
+    }
+    if (!loggedIn) {
+      console.log('⏰ 等待超时，未检测到登录成功。');
+      await browser.close();
+      process.exit(1);
+    }
+
+    console.log('✅ 检测到登录成功:', page.url());
+    await autoDetectHost(page);
+
+    // 导出 storageState
+    if (fs.existsSync(STATE)) {
+      const bak = STATE + '.bak-' + new Date().toISOString().slice(0, 10);
+      if (!fs.existsSync(bak)) fs.copyFileSync(STATE, bak);
+      console.log('🗂️ 旧快照已备份:', bak);
+    }
+    await ctx.storageState({ path: STATE });
+    console.log('💾 新 storage-state.json 已导出');
+    await browser.close();
+    console.log('🏁 完成');
+    process.exit(0);
+  }
+
+  // ── 已配置 HUAYI_HOST：自动打开登录页 ──
   console.log('🌐 打开登录页...');
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(3000);
