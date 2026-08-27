@@ -364,6 +364,12 @@ function __hyInit__() {
       return;
     }
 
+    // 【hysslogin SSO 登录页】Vue 应用，直接操作 Vue 实例填账号密码
+    if (location.hostname.indexOf("hysslogin") !== -1) {
+      try { HY_hyssloginHelper(); } catch (e) { console.error("【华医网小助手·hysslogin登录助手】初始化错误:", e); }
+      return;
+    }
+
     // 【存活证明】在页面左上角注入一个不可见的标记，证明脚本已注入
     try {
       var _indicator = document.createElement("div");
@@ -2734,6 +2740,128 @@ function __hyInit__() {
     }
 
     //---------------------------------全局函数区end------------------------------//
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // hysslogin SSO 登录助手（密码登录自动填充 + 图形验证码半自动）
+    // 仅在 hysslogin.91huayi.com 登录页生效。
+    // 实现方式：直接操作 Vue 实例数据（vm.toPass / vm.user.userName / vm.user.password /
+    //           vm.check / vm.userLogin），绕过自定义密码遮罩组件。
+    // 凭据从 localStorage(hyw_cred) 读取，不内置任何默认值。
+    // ═══════════════════════════════════════════════════════════════════════════
+    function HY_hyssloginHelper() {
+      console.log("【华医网小助手·hysslogin登录助手】已启动");
+
+      // 1) 读取凭据：仅从 localStorage 读取，不内置默认值
+      function getCred() {
+        try {
+          var s = localStorage.getItem("hyw_cred");
+          if (s) {
+            var o = JSON.parse(s);
+            if (o && o.account && o.password) return o;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      var cred = getCred();
+      if (!cred) {
+        console.log("【hysslogin登录助手】未找到凭据（localStorage hyw_cred），跳过自动填充");
+        return;
+      }
+
+      // 2) 等待 Vue 实例挂载（Vue2 会在 #app 挂 __vue__）
+      function waitVue(cb, tries) {
+        tries = tries || 0;
+        var app = document.getElementById("app");
+        if (app && app.__vue__) { cb(app.__vue__); return; }
+        if (tries > 120) { console.error("【hysslogin登录助手】等待 Vue 实例超时"); return; }
+        setTimeout(function () { waitVue(cb, tries + 1); }, 150);
+      }
+
+      // 3) 主流程：切到密码登录 → 填账号密码 → 弹面板
+      waitVue(function (vm) {
+        try { vm.toPass(); } catch (e) { console.error("toPass 失败", e); }
+        setTimeout(function () {
+          try {
+            vm.user.userName = cred.account;
+            vm.user.password = cred.password;
+            if ("displayValue" in vm) vm.displayValue = cred.password;
+            vm.check = true; // 勾选用户协议
+            console.log("【hysslogin登录助手】账号密码已填入");
+          } catch (e) { console.error("填值失败", e); }
+          buildPanel(vm, cred);
+        }, 600);
+      });
+
+      // 4) 浮动面板：放大验证码 + 输入框 + 提示 + 登录
+      function buildPanel(vm, cred) {
+        if (document.getElementById("hy-login-panel")) return;
+        var panel = document.createElement("div");
+        panel.id = "hy-login-panel";
+        panel.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:999999;width:300px;background:#fff;border:2px solid #188AAE;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);font-family:'Microsoft YaHei',sans-serif;padding:14px;color:#222;";
+        panel.innerHTML =
+          '<div style="font-weight:700;color:#188AAE;margin-bottom:8px;font-size:15px;">🔐 华医网自动登录助手</div>' +
+          '<div style="font-size:12px;color:#666;margin-bottom:6px;">已自动填好账号密码，请查看下方大图输入图形验证码：</div>' +
+          '<img id="hy-verify-img" style="width:200px;height:75px;display:block;margin:0 auto 8px;border:1px solid #ddd;border-radius:4px;cursor:pointer;" title="点击刷新验证码">' +
+          '<input id="hy-verify-input" type="text" autocomplete="off" maxlength="6" placeholder="请输入图形验证码" style="width:100%;box-sizing:border-box;padding:8px;font-size:15px;border:1px solid #188AAE;border-radius:6px;outline:none;letter-spacing:3px;text-align:center;">' +
+          '<div id="hy-status" style="font-size:12px;color:#c0392b;min-height:16px;margin:6px 0;text-align:center;"></div>' +
+          '<button id="hy-login-btn" style="width:100%;padding:9px;background:#188AAE;color:#fff;border:none;border-radius:6px;font-size:15px;cursor:pointer;">登 录</button>' +
+          '<div style="margin-top:8px;display:flex;justify-content:space-between;font-size:12px;">' +
+          '<a id="hy-refresh" href="javascript:void(0)" style="color:#188AAE;">刷新验证码</a>' +
+          '<a id="hy-hide" href="javascript:void(0)" style="color:#999;">收起</a></div>';
+
+        (document.body || document.documentElement).appendChild(panel);
+
+        var img = panel.querySelector("#hy-verify-img");
+        var input = panel.querySelector("#hy-verify-input");
+        var status = panel.querySelector("#hy-status");
+        var btn = panel.querySelector("#hy-login-btn");
+
+        function syncImg() {
+          var v = document.getElementById("imgVerify");
+          if (v && v.src) img.src = v.src;
+        }
+        syncImg();
+        setTimeout(syncImg, 1200);
+        input.focus();
+
+        function submit() {
+          var code = input.value.trim();
+          if (!code) { status.style.color = "#c0392b"; status.textContent = "请输入图形验证码"; input.focus(); return; }
+          try {
+            vm.QRValue = code;
+            var domV = document.querySelector(".verify_input");
+            if (domV) { domV.value = code; domV.dispatchEvent(new Event("input", { bubbles: true })); }
+          } catch (e) { console.error("设验证码失败", e); }
+          status.style.color = "#188AAE";
+          status.textContent = "登录中...";
+          var oldSrc = (document.getElementById("imgVerify") || {}).src;
+          try { vm.userLogin(); } catch (e) { console.error("userLogin 失败", e); status.textContent = "登录失败：" + e.message; }
+          setTimeout(function () {
+            if (location.hostname.indexOf("hysslogin") !== -1) {
+              var newSrc = (document.getElementById("imgVerify") || {}).src;
+              if (newSrc !== oldSrc) {
+                status.style.color = "#c0392b";
+                status.textContent = "验证码错误，请重新输入";
+                syncImg();
+                input.value = "";
+                input.focus();
+              }
+            } else {
+              status.style.color = "#27ae60";
+              status.textContent = "登录成功，正在跳转...";
+              setTimeout(function () { if (panel.parentNode) panel.parentNode.removeChild(panel); }, 1500);
+            }
+          }, 2000);
+        }
+
+        btn.addEventListener("click", submit);
+        input.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+        img.addEventListener("click", function () { try { vm.getVerify(); setTimeout(syncImg, 500); } catch (e) {} });
+        panel.querySelector("#hy-refresh").addEventListener("click", function () { try { vm.getVerify(); setTimeout(syncImg, 500); } catch (e) {} });
+        panel.querySelector("#hy-hide").addEventListener("click", function () { panel.style.display = "none"; });
+      }
+    }
   })();
   // DOMContentLoaded wrapper end
 }
